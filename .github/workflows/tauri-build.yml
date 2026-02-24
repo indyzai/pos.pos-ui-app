@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -46,7 +48,11 @@ jobs:
         id: get_version
         shell: bash
         run: |
-          VERSION=$(grep '"version":' src-tauri/tauri.conf.json | head -n 1 | sed 's/.*"version": "\(.*\)".*/\1/')
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(grep '"version":' src-tauri/tauri.conf.json | head -n 1 | sed 's/.*"version": "\(.*\)".*/\1/')
+          fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
 
@@ -127,8 +133,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
         with:
-          tagName: v__VERSION__
-          releaseName: "Indyz POS v__VERSION__"
+          tagName: v${{ steps.get_version.outputs.VERSION }}
+          releaseName: "Indyz POS v${{ steps.get_version.outputs.VERSION }}"
           releaseBody: "Automated release from GitHub Actions"
           releaseDraft: true
           prerelease: false

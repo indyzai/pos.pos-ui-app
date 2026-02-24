@@ -8,6 +8,44 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
+# Check for version increment argument
+INCREMENT=$1
+if [[ "$INCREMENT" =~ ^(patch|minor|major)$ ]]; then
+    IFS='.' read -r major minor patch <<< "$VERSION"
+    
+    case $INCREMENT in
+        major)
+            major=$((major + 1))
+            minor=0
+            patch=0
+            ;;
+        minor)
+            minor=$((minor + 1))
+            patch=0
+            ;;
+        patch)
+            patch=$((patch + 1))
+            ;;
+    esac
+    
+    NEW_VERSION="$major.$minor.$patch"
+    echo "Incrementing version from $VERSION to $NEW_VERSION ($INCREMENT)..."
+    
+    # Update tauri.conf.json
+    sed -i '' "s/\"version\": \"$VERSION\"/\"version\": \"$NEW_VERSION\"/" src-tauri/tauri.conf.json
+    
+    # Update package.json
+    sed -i '' "s/\"version\": \"$VERSION\"/\"version\": \"$NEW_VERSION\"/" package.json
+    
+    # Git commit
+    git add src-tauri/tauri.conf.json package.json
+    git commit -m "chore: bump version to $NEW_VERSION"
+    
+    VERSION=$NEW_VERSION
+else
+    echo "No version increment specified (patch|minor|major). Using current version $VERSION."
+fi
+
 TAG="v$VERSION"
 
 # Check for --push flag
@@ -26,7 +64,8 @@ else
 fi
 
 if [ "$PUSH" = true ]; then
-    echo "Pushing tag $TAG to origin..."
+    echo "Pushing changes and tag $TAG to origin..."
+    git push origin main
     git push origin "$TAG"
 else
     echo "To push the tag, run: git push origin $TAG"
