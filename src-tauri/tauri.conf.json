@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.indyzai.pos",
   "build": {
-    "beforeBuildCommand": "",
+    "beforeBuildCommand": "yarn build",
     "beforeDevCommand": "",
     "devUrl": "http://localhost:3000",
     "frontendDist": "../dist"
