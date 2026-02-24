@@ -13,6 +13,8 @@ jobs:
   build:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -27,6 +29,8 @@ jobs:
             os: ubuntu-latest
           - platform: ios
             os: macos-latest
+    env:
+      APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
 
     steps:
       - uses: actions/checkout@v4
@@ -62,18 +66,13 @@ jobs:
         run: yarn install
 
       - name: Setup iOS/macOS Signing
-        if: matrix.platform == 'ios' || matrix.platform == 'macos'
+        if: (matrix.platform == 'ios' || matrix.platform == 'macos') && env.APPLE_CERTIFICATE_BASE64 != ''
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'build-password' }}
         run: |
-          if [ -z "$APPLE_CERTIFICATE_BASE64" ]; then
-            echo "Error: APPLE_CERTIFICATE_BASE64 secret is missing"
-            exit 1
-          fi
-
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
@@ -81,13 +80,13 @@ jobs:
           printf "%s" "$APPLE_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
           
           if [ "${{ matrix.platform }}" == "ios" ]; then
-            if [ -z "$APPLE_PROVISIONING_PROFILE_BASE64" ]; then
-              echo "Error: APPLE_PROVISIONING_PROFILE_BASE64 secret is missing"
-              exit 1
+            if [ -n "$APPLE_PROVISIONING_PROFILE_BASE64" ]; then
+              printf "%s" "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+              mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+              cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+            else
+              echo "Warning: APPLE_PROVISIONING_PROFILE_BASE64 is missing. iOS build might not be signed."
             fi
-            printf "%s" "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
-            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-            cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
           fi
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
