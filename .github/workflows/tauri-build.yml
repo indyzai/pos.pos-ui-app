@@ -15,6 +15,7 @@ jobs:
   build:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
+    if: "!(github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'chore: bump'))"
     strategy:
       fail-fast: false
       matrix:
