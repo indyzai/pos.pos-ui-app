@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build ${{ matrix.platform }}
@@ -37,7 +40,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'android' && 'aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android' || (matrix.platform == 'ios' && 'aarch64-apple-ios,aarch64-apple-ios-sim' || '') }}
+          targets: ${{ matrix.platform == 'android' && 'aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android' || (matrix.platform == 'ios' && 'aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios' || '') }}
 
       - name: Install Dependencies (Linux)
         if: matrix.platform == 'linux'
@@ -58,18 +61,34 @@ jobs:
       - name: Install Frontend Dependencies
         run: yarn install
 
-      - name: Setup iOS Signing (iOS/macOS)
+      - name: Setup iOS/macOS Signing
         if: matrix.platform == 'ios' || matrix.platform == 'macos'
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'build-password' }}
         run: |
-          # Import certificate and profile (Simplified for brevity, usually involves security create-keychain etc.)
-          echo "Implementing iOS/macOS signing setup..."
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-      - name: Setup Android Signing (Android)
+          echo -n "$APPLE_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          
+          if [ "${{ matrix.platform }}" == "ios" ]; then
+            echo -n "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+          fi
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH $(security list-keychains -d user | xargs)
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+      - name: Setup Android Signing
         if: matrix.platform == 'android'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -83,22 +102,40 @@ jobs:
           echo "keyAlias=$ANDROID_KEY_ALIAS" >> src-tauri/gen/android/app/keystore.properties
           echo "keyPassword=$ANDROID_KEY_PASSWORD" >> src-tauri/gen/android/app/keystore.properties
 
-      - name: Build Tauri App
+      - name: Build Desktop (Windows, Linux, macOS)
+        if: matrix.platform != 'android' && matrix.platform != 'ios'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         with:
           tagName: v__VERSION__
           releaseName: "Indyz POS v__VERSION__"
           releaseBody: "Automated release from GitHub Actions"
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.platform == 'android' && '--target android' || (matrix.platform == 'ios' && '--target ios' || '') }}
+
+      - name: Build Android
+        if: matrix.platform == 'android'
+        run: yarn tauri android build --no-dev
+
+      - name: Build iOS
+        if: matrix.platform == 'ios'
+        run: yarn tauri ios build --no-dev
+
+      - name: Create Release and Upload Mobile Artifacts
+        if: matrix.platform == 'android' || matrix.platform == 'ios'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "Indyz POS v__VERSION__"
+          releaseBody: "Automated release from GitHub Actions"
+          releaseDraft: true
+          prerelease: false
+          includeRelease: false # Don't try to build again, just handle release logic
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -107,4 +144,6 @@ jobs:
           path: |
             src-tauri/target/release/bundle/*
             src-tauri/gen/android/app/build/outputs/bundle/release/*.aab
+            src-tauri/gen/android/app/build/outputs/apk/release/*.apk
             src-tauri/gen/apple/build/Release-iphoneos/*.ipa
+            src-tauri/gen/apple/build/Release-iphoneos/*.app
