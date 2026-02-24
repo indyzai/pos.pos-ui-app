@@ -15,7 +15,7 @@ jobs:
   build:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
-    if: "!(github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'chore: bump'))"
+    if: "!(github.ref == 'refs/heads/main' && github.event.head_commit != null && startsWith(github.event.head_commit.message, 'chore: bump'))"
     strategy:
       fail-fast: false
       matrix:
@@ -131,6 +131,7 @@ jobs:
           TAURI_SIGNING_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
         with:
           includeRelease: false
+          args: build
 
       - name: Build Android
         if: matrix.platform == 'android'
@@ -180,8 +181,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.get_version.outputs.VERSION }}
-          name: "Indyz POS v${{ steps.get_version.outputs.VERSION }}"
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.get_version.outputs.VERSION) }}
+          name: "Indyz POS ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.get_version.outputs.VERSION) }}"
           body: "Automated release from GitHub Actions"
           draft: true
           prerelease: false
