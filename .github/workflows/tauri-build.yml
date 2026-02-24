@@ -31,6 +31,7 @@ jobs:
             os: macos-latest
     env:
       APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +41,14 @@ jobs:
         with:
           node-version: lts/*
           cache: 'yarn'
+
+      - name: Get Version
+        id: get_version
+        shell: bash
+        run: |
+          VERSION=$(grep '"version":' src-tauri/tauri.conf.json | head -n 1 | sed 's/.*"version": "\(.*\)".*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -129,21 +138,22 @@ jobs:
         run: yarn tauri android build
 
       - name: Build iOS
-        if: matrix.platform == 'ios'
+        if: matrix.platform == 'ios' && env.APPLE_TEAM_ID != ''
         run: yarn tauri ios build
 
       - name: Create Release and Upload Mobile Artifacts
         if: matrix.platform == 'android' || matrix.platform == 'ios'
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tagName: v__VERSION__
-          releaseName: "Indyz POS v__VERSION__"
-          releaseBody: "Automated release from GitHub Actions"
-          releaseDraft: true
+          tag_name: v${{ steps.get_version.outputs.VERSION }}
+          name: "Indyz POS v${{ steps.get_version.outputs.VERSION }}"
+          body: "Automated release from GitHub Actions"
+          draft: true
           prerelease: false
-          includeRelease: false # Don't try to build again, just handle release logic
+          files: |
+            src-tauri/gen/android/app/build/outputs/bundle/release/*.aab
+            src-tauri/gen/android/app/build/outputs/apk/release/*.apk
+            src-tauri/gen/apple/build/Release-iphoneos/*.ipa
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
