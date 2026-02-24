@@ -184,6 +184,6 @@ jobs:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.get_version.outputs.VERSION) }}
           name: "Indyz POS ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.get_version.outputs.VERSION) }}"
           body: "Automated release from GitHub Actions"
-          draft: true
-          prerelease: false
+          draft: false
+          prerelease: true
           files: artifacts/**/*
