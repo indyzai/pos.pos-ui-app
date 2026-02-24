@@ -1,18 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "pos-ui-app",
+  "productName": "Indyz POS",
   "version": "0.1.0",
   "identifier": "com.indyzai.pos",
   "build": {
-    "beforeDevCommand": "yarn dev",
-    "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "yarn build",
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "",
+    "devUrl": "http://localhost:3000",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "pos-ui-app",
+        "title": "Indyz POS",
         "width": 800,
         "height": 600
       }
