@@ -144,12 +144,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tauri-build-${{ matrix.platform }}
-          if-no-files-found: ignore
+          if-no-files-found: warn
           path: |
-            src-tauri/target/release/bundle/*
-            src-tauri/gen/android/app/build/outputs/bundle/release/*.aab
-            src-tauri/gen/android/app/build/outputs/apk/release/*.apk
-            src-tauri/gen/apple/build/Release-iphoneos/*.ipa
+            src-tauri/target/release/bundle/**/*
+            src-tauri/gen/android/app/build/outputs/bundle/release/**/*.aab
+            src-tauri/gen/android/app/build/outputs/apk/release/**/*.apk
+            src-tauri/gen/apple/build/Release-iphoneos/**/*.ipa
 
   publish:
     name: Create Release
