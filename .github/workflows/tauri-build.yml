@@ -12,10 +12,12 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build ${{ matrix.platform }}
+  # ────────────────────────────────────────────────
+  #   DESKTOP BUILDS (Windows, Linux, macOS)
+  # ────────────────────────────────────────────────
+  build-desktop:
+    name: Build Desktop ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
-    if: "!(github.ref == 'refs/heads/main' && github.event.head_commit != null && startsWith(github.event.head_commit.message, 'chore: bump'))"
     strategy:
       fail-fast: false
       matrix:
@@ -23,18 +25,10 @@ jobs:
           - platform: windows
             os: windows-latest
           - platform: linux
-            os: ubuntu-latest
+            os: ubuntu-22.04     # 22.04 usually more stable for webkitgtk
           - platform: macos
             os: macos-latest
-          - platform: android
-            os: ubuntu-latest
-          - platform: ios
-            os: macos-latest
-
-    env:
-      APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
+      
     steps:
       - uses: actions/checkout@v4
 
@@ -44,72 +38,75 @@ jobs:
           node-version: lts/*
           cache: 'yarn'
 
-      - name: Get Version
-        id: get_version
-        shell: bash
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-          else
-            VERSION=$(grep '"version":' src-tauri/tauri.conf.json | head -n 1 | sed 's/.*"version": "\(.*\)".*/\1/')
-          fi
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
+      - name: Install frontend dependencies
+        run: yarn install --frozen-lockfile
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'android' && 'aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android' || (matrix.platform == 'ios' && 'aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios' || '') }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin   # optional — helps macOS universal
 
-      - name: Install Dependencies (Linux)
+      - name: Install Linux dependencies
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Setup Android SDK (Android)
-        if: matrix.platform == 'android'
+      - name: Build Desktop
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
+          # APPLE_CERTIFICATE etc. — if you want macOS signing via tauri-action
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: app-v__VERSION__            # optional — tauri-action can use it
+          releaseName: "Indyz POS v__VERSION__"
+          releaseBody: "Automated desktop release"
+          releaseDraft: false
+          prerelease: ${{ github.ref_type != 'tag' }}
+          args: --bundles dmg,msi,AppImage,deb,rpm   # customize bundles you want
+
+  # ────────────────────────────────────────────────
+  #   ANDROID BUILD
+  # ────────────────────────────────────────────────
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'yarn'
+
+      - name: Install frontend dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup NDK (Android)
-        if: matrix.platform == 'android'
+      - name: Install NDK 27
         run: |
-          sdkmanager "ndk;27.0.12077973"
+          sdkmanager --install "ndk;27.0.12077973"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
 
-      - name: Install Frontend Dependencies
-        run: yarn install
-
-      - name: Setup iOS/macOS Signing
-        if: (matrix.platform == 'ios' || matrix.platform == 'macos') && env.APPLE_CERTIFICATE_BASE64 != ''
-        env:
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'build-password' }}
-        run: |
-          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          printf "%s" "$APPLE_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-          if [ "${{ matrix.platform }}" == "ios" ]; then
-            if [ -n "$APPLE_PROVISIONING_PROFILE_BASE64" ]; then
-              printf "%s" "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
-              mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-              cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
-            else
-              echo "Warning: APPLE_PROVISIONING_PROFILE_BASE64 is missing. iOS build might not be signed."
-            fi
-          fi
-          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign -k $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH $(security list-keychain -d user | xargs)
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-
-      - name: Setup Android Signing
-        if: matrix.platform == 'android'
+      - name: Prepare Android signing (if secrets present)
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -122,68 +119,132 @@ jobs:
           echo "keyAlias=$ANDROID_KEY_ALIAS" >> src-tauri/gen/android/app/keystore.properties
           echo "keyPassword=$ANDROID_KEY_PASSWORD" >> src-tauri/gen/android/app/keystore.properties
 
-      - name: Build Desktop (Windows, Linux, macOS)
-        if: matrix.platform != 'android' && matrix.platform != 'ios'
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
-        with:
-          includeRelease: false
-          args: build
+      - name: Build Android (APK + AAB)
+        run: yarn tauri android build --release
 
-      - name: Build Android
-        if: matrix.platform == 'android'
-        run: yarn tauri android build
-
-      - name: Build iOS
-        if: matrix.platform == 'ios' && env.APPLE_TEAM_ID != ''
-        run: yarn tauri ios build
-
-      - name: Upload Artifacts
+      - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: tauri-build-${{ matrix.platform }}
-          if-no-files-found: warn
+          name: android-build
           path: |
-            src-tauri/target/release/bundle/**/*
-            src-tauri/gen/android/app/build/outputs/bundle/release/**/*.aab
-            src-tauri/gen/android/app/build/outputs/apk/release/**/*.apk
-            src-tauri/gen/apple/build/Release-iphoneos/**/*.ipa
+            src-tauri/gen/android/app/build/outputs/apk/release/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: warn
 
-  publish:
-    name: Create Release
+  # ────────────────────────────────────────────────
+  #   PRE-FLIGHT CHECKS
+  # ────────────────────────────────────────────────
+  check-ios:
+    name: Check if iOS build should run
     runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      contents: write
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - id: check
+        run: |
+          if [[ "${{ vars.BUILD_IOS }}" == "true" ]] || [[ "${{ secrets.APPLE_TEAM_ID }}" != "" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+  # ────────────────────────────────────────────────
+  #   iOS BUILD (only on macOS runner!)
+  # ────────────────────────────────────────────────
+  build-ios:
+    name: Build iOS
+    needs: [check-ios]
+    if: needs.check-ios.outputs.should_run == 'true'
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get Version
-        id: get_version
-        shell: bash
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'yarn'
+
+      - name: Install frontend dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Setup iOS/macOS signing
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'build-password' }}
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          printf "%s" "$APPLE_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          if [ -n "$APPLE_PROVISIONING_PROFILE_BASE64" ]; then
+            printf "%s" "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
           else
-            VERSION=$(grep '"version":' src-tauri/tauri.conf.json | head -n 1 | sed 's/.*"version": "\(.*\)".*/\1/')
+            echo "Warning: APPLE_PROVISIONING_PROFILE_BASE64 is missing. iOS build might not be signed."
           fi
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH $(security list-keychain -d user | xargs)
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+      - name: Build iOS
+        run: yarn tauri ios build --release
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: src-tauri/gen/apple/build/Release-iphoneos/*.ipa
+          if-no-files-found: warn
+
+  # ────────────────────────────────────────────────
+  #   PUBLISH (only on tag or manual dispatch with publish)
+  # ────────────────────────────────────────────────
+  publish:
+    needs: [build-desktop, build-android, build-ios, check-ios]
+    if: |
+      always() &&
+      (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch') &&
+      (needs.build-desktop.result == 'success') &&
+      (needs.build-android.result == 'success') &&
+      (needs.build-ios.result == 'success' || needs.build-ios.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: '*-build'
           merge-multiple: true
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.get_version.outputs.VERSION) }}
-          name: "Indyz POS ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.get_version.outputs.VERSION) }}"
+          tag_name: ${{ github.ref_name }}
+          name: "Indyz POS ${{ github.ref_name }}"
           body: "Automated release from GitHub Actions"
           draft: false
-          prerelease: true
-          files: artifacts/**/*
+          prerelease: ${{ !startsWith(github.ref_name, 'v') || contains(github.ref_name, '-') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          files: |
+            artifacts/**/*.exe
+            artifacts/**/*.msi
+            artifacts/**/*.AppImage
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.dmg
+            artifacts/**/*.apk
+            artifacts/**/*.aab
+            artifacts/**/*.ipa
