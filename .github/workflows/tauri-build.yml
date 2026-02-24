@@ -71,10 +71,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
           # APPLE_CERTIFICATE etc. — if you want macOS signing via tauri-action
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        #   APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+        #   APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        #   APPLE_ID: ${{ secrets.APPLE_ID }}
+        #   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: app-v__VERSION__            # optional — tauri-action can use it
           releaseName: "Indyz POS v__VERSION__"
@@ -141,7 +141,7 @@ jobs:
           echo "keyPassword=$ANDROID_KEY_PASSWORD" >> src-tauri/gen/android/app/keystore.properties
 
       - name: Build Android (APK + AAB)
-        run: yarn tauri android build --release
+        run: yarn tauri android build
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
