@@ -2,9 +2,9 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Indyz POS",
   "version": "0.1.7",
-  "identifier": "com.indyzai.pos",
+  "identifier": "com.indyz.ai.pos",
   "build": {
-    "beforeBuildCommand": "yarn build",
+    "beforeBuildCommand": "",
     "beforeDevCommand": "",
     "devUrl": "http://localhost:3000",
     "frontendDist": "../dist"

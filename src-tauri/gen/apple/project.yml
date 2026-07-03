@@ -1,6 +1,6 @@
 name: pos-ui-app
 options:
-  bundleIdPrefix: com.indyzai.pos
+  bundleIdPrefix: com.indyz.ai.pos
   deploymentTarget:
     iOS: 14.0
 fileGroups: [../../src]
@@ -11,7 +11,7 @@ settingGroups:
   app:
     base:
       PRODUCT_NAME: Indyz POS
-      PRODUCT_BUNDLE_IDENTIFIER: com.indyzai.pos
+      PRODUCT_BUNDLE_IDENTIFIER: com.indyz.ai.pos
 targetTemplates:
   app:
     type: application

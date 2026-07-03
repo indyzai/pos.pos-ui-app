@@ -4,9 +4,15 @@
   "version": "0.1.7",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev:web": "vite",
+    "build:web": "tsc && vite build",
     "preview": "vite preview",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:android": "tauri android build --aab true",
+    "build:ios": "tauri ios build",
+    "build:macos": "tauri build --bundles dmg",
+    "build:windows": "tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc",
     "tauri": "tauri"
   },
   "dependencies": {

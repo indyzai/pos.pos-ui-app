@@ -1,4 +1,4 @@
-package com.indyzai.pos
+package com.indyz.ai.pos
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
