@@ -11,6 +11,9 @@ on:
 permissions:
   contents: write
 
+env:
+  CARGO_HTTP_MULTIPLEXING: "false"
+
 jobs:
   # ────────────────────────────────────────────────
   #   FAST COMPILE CHECK (Runs only on main branch)
