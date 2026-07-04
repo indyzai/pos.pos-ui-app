@@ -37,6 +37,17 @@ fi
 
 if [ -n "$NEW_VERSION" ]; then
     VERSION=$NEW_VERSION
+    echo "Bumping version to $VERSION in package.json and tauri.conf.json..."
+    
+    # Update package.json
+    jq ".version = \"$VERSION\"" package.json > package.json.tmp && mv package.json.tmp package.json
+    
+    # Update tauri.conf.json
+    jq ".version = \"$VERSION\"" src-tauri/tauri.conf.json > tauri.conf.json.tmp && mv tauri.conf.json.tmp src-tauri/tauri.conf.json
+    
+    # Commit changes
+    git add package.json src-tauri/tauri.conf.json
+    git commit -m "chore: bump version to $VERSION"
 else
     echo "Using current version $VERSION (no valid increment/version provided)."
 fi
@@ -59,9 +70,17 @@ else
 fi
 
 if [ "$PUSH" = true ]; then
-    echo "Pushing tag $TAG to origin..."
-    # Note: We only push the tag, not the branch, as requested (no bump commit)
-    git push origin "$TAG"
+    if [ -n "$NEW_VERSION" ]; then
+        echo "Pushing commit and tag $TAG to origin..."
+        git push origin
+        git push origin "$TAG"
+    else
+        echo "Pushing tag $TAG to origin..."
+        git push origin "$TAG"
+    fi
 else
     echo "To push the tag, run: git push origin $TAG"
+    if [ -n "$NEW_VERSION" ]; then
+        echo "And don't forget to push the version bump commit: git push origin"
+    fi
 fi
