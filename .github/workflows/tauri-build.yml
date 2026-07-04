@@ -13,10 +13,49 @@ permissions:
 
 jobs:
   # ────────────────────────────────────────────────
+  #   FAST COMPILE CHECK (Runs only on main branch)
+  # ────────────────────────────────────────────────
+  build-check:
+    name: Fast Compile Check
+    if: github.ref_type == 'branch' && github.event_name == 'push'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'yarn'
+
+      - name: Install frontend dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Download web artifacts
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download --repo indyzai/pos.pos-ui -p "web-dist.zip" || true
+          unzip web-dist.zip -d dist || echo "Web artifacts not found, make sure they exist."
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Check compilation
+        run: yarn tauri build --no-bundle
+
+  # ────────────────────────────────────────────────
   #   DESKTOP BUILDS (Windows, Linux, macOS)
   # ────────────────────────────────────────────────
   build-desktop:
     name: Build Desktop ${{ matrix.platform }}
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -85,18 +124,26 @@ jobs:
         #   APPLE_ID: ${{ secrets.APPLE_ID }}
         #   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          tagName: app-v__VERSION__            # optional — tauri-action can use it
-          releaseName: "Indyz POS v__VERSION__"
-          releaseBody: "Automated desktop release"
-          releaseDraft: false
-          prerelease: ${{ github.ref_type != 'tag' }}
           args: --bundles ${{ matrix.bundles }}
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-build-${{ matrix.platform }}
+          path: |
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.deb
+          if-no-files-found: warn
 
   # ────────────────────────────────────────────────
   #   ANDROID BUILD
   # ────────────────────────────────────────────────
   build-android:
     name: Build Android
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -159,7 +206,7 @@ jobs:
           echo "keyPassword=$ANDROID_KEY_PASSWORD" >> src-tauri/gen/android/app/keystore.properties
 
       - name: Build Android (APK + AAB)
-        run: yarn tauri android build
+        run: yarn tauri android build --target aarch64
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
@@ -175,6 +222,7 @@ jobs:
   # ────────────────────────────────────────────────
   check-ios:
     name: Check if iOS build should run
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
