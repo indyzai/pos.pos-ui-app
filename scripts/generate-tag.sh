@@ -10,7 +10,7 @@ fi
 
 # Check for version increment or specific version argument
 INCREMENT=${1:-patch}
-if [ "$INCREMENT" == "--push" ]; then
+if [ "$INCREMENT" == "--push" ] || [ "$INCREMENT" == "--amend" ]; then
     INCREMENT="patch"
 fi
 NEW_VERSION=""
@@ -50,7 +50,14 @@ if [ -n "$NEW_VERSION" ]; then
     
     # Commit changes
     git add package.json src-tauri/tauri.conf.json
-    git commit -m "chore: bump version to $VERSION"
+    
+    # Check for --amend flag
+    if [[ "$*" == *"--amend"* ]]; then
+        LAST_MSG=$(git log -1 --pretty=%B)
+        git commit --amend -m "${LAST_MSG} - bumped to v${VERSION}"
+    else
+        git commit -m "chore: bump version to $VERSION"
+    fi
 else
     echo "Using current version $VERSION (no valid increment/version provided)."
 fi

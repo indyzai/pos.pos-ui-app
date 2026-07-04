@@ -6,9 +6,9 @@ if [ "$BRANCH" != "main" ]; then
     exit 0
 fi
 
-# Prevent infinite loop by checking if the last commit was a version bump
+# Prevent infinite loop by checking if the last commit already has the bumped version string
 LAST_MSG=$(git log -1 --pretty=%B)
-if [[ "$LAST_MSG" == chore:\ bump\ version* ]]; then
+if [[ "$LAST_MSG" == *\ -\ bumped\ to\ v* ]]; then
     exit 0
 fi
 
@@ -16,4 +16,4 @@ echo ""
 echo "====================================================="
 echo " post-commit hook: Auto-bumping version on main... "
 echo "====================================================="
-./scripts/generate-tag.sh patch --push
+./scripts/generate-tag.sh patch --amend --push

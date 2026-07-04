@@ -216,8 +216,8 @@ jobs:
         with:
           name: android-build
           path: |
-            src-tauri/gen/android/app/build/outputs/apk/release/*.apk
-            src-tauri/gen/android/app/build/outputs/bundle/release/*.aab
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
           if-no-files-found: warn
 
   # ────────────────────────────────────────────────
@@ -335,7 +335,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          pattern: '*-build'
+          pattern: '*build*'
           merge-multiple: true
 
       - name: Create Release
