@@ -9,7 +9,10 @@ if [ -z "$VERSION" ] || [ "$VERSION" == "null" ]; then
 fi
 
 # Check for version increment or specific version argument
-INCREMENT=$1
+INCREMENT=${1:-patch}
+if [ "$INCREMENT" == "--push" ]; then
+    INCREMENT="patch"
+fi
 NEW_VERSION=""
 
 if [[ "$INCREMENT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

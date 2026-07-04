@@ -54,6 +54,7 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Download web artifacts
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -121,6 +122,7 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Download web artifacts
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -215,6 +217,7 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Download web artifacts
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
