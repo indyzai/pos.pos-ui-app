@@ -459,6 +459,11 @@
   resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.10.1.tgz#57c1bae6114ec33d977eb2b50dfefc25fa84fc93"
   integrity sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==
 
+"@tauri-apps/api@^2.10.1", "@tauri-apps/api@^2.11.0":
+  version "2.11.1"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.11.1.tgz#cd6b13fc26403ca095a02e39ecdbec8048d2872d"
+  integrity sha512-M2FPuYND2m+wh5hfW9ZpSdxMPdEJovPBWwoHJmwUpysTYNHaOkVFN419m/K0LIgjb/7KU2vBgsUepJWugQCvAA==
+
 "@tauri-apps/cli-darwin-arm64@2.10.0":
   version "2.10.0"
   resolved "https://registry.yarnpkg.com/@tauri-apps/cli-darwin-arm64/-/cli-darwin-arm64-2.10.0.tgz#015cd11bf138286cf98625c2341c53a84e0fdb9c"
@@ -531,12 +536,26 @@
     "@tauri-apps/cli-win32-ia32-msvc" "2.10.0"
     "@tauri-apps/cli-win32-x64-msvc" "2.10.0"
 
+"@tauri-apps/plugin-deep-link@^2":
+  version "2.4.9"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-deep-link/-/plugin-deep-link-2.4.9.tgz#ae56d59130380f806b533b3107c3f16654e66a8d"
+  integrity sha512-u0SKOUHnJ1wqeqXsDFq2+kASCBj9xxbG0g9XZWPy9SOmU4wXtp6b/wiYpm6oH6/5fBTQsLqnLhIvqLBRpgHJlA==
+  dependencies:
+    "@tauri-apps/api" "^2.11.0"
+
 "@tauri-apps/plugin-opener@^2":
   version "2.5.3"
   resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-opener/-/plugin-opener-2.5.3.tgz#09f8fe143567839cc491f4f8fde21caa0f1a8b89"
   integrity sha512-CCcUltXMOfUEArbf3db3kCE7Ggy1ExBEBl51Ko2ODJ6GDYHRp1nSNlQm5uNCFY5k7/ufaK5Ib3Du/Zir19IYQQ==
   dependencies:
     "@tauri-apps/api" "^2.8.0"
+
+"@tauri-apps/plugin-sql@^2.3.2":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-sql/-/plugin-sql-2.4.0.tgz#06402e6fe4c219a74b8aab9f890feb322754d9a1"
+  integrity sha512-SIICc5JlnK6OrBZzOw7MmhXHPlmASpt5zLWIu10WW4kLr5cDYOXHdV2MoCgYQkgZLQfyBYgF3SQa5XCisUiQkw==
+  dependencies:
+    "@tauri-apps/api" "^2.10.1"
 
 "@types/babel__core@^7.20.5":
   version "7.20.5"
