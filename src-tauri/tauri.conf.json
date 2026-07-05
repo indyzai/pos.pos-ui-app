@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Indyz POS",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "identifier": "com.indyz.ai.pos",
   "build": {
-    "beforeBuildCommand": "",
     "beforeDevCommand": "",
+    "beforeBuildCommand": "",
     "devUrl": "http://localhost:3000",
     "frontendDist": "../dist"
   },
@@ -13,12 +13,28 @@
     "windows": [
       {
         "title": "Indyz POS",
-        "width": 800,
-        "height": 600
+        "width": 1280,
+        "height": 800
       }
     ],
     "security": {
       "csp": null
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "schemes": [
+        "indyzai-pos"
+      ],
+      "domains": [
+        "auth.indyzai.com",
+        "pos.indyzai.com"
+      ]
+    },
+    "sql": {
+      "preloadedDatabases": [
+        "sqlite:pos_db.sqlite"
+      ]
     }
   },
   "bundle": {
@@ -31,6 +47,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "entitlements": "Entitlements.macOS.plist"
+    },
     "iOS": {
       "developmentTeam": "$APPLE_TEAM_ID"
     }

@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    pos_ui_app_lib::run()
+    indyzai_pos_app_lib::run()
 }

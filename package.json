@@ -1,7 +1,7 @@
 {
   "name": "pos-ui-app",
   "private": true,
-  "version": "0.1.21",
+  "version": "0.1.22",
   "type": "module",
   "scripts": {
     "dev:web": "vite",
@@ -19,7 +19,13 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2"
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-deep-link": "^2",
+    "@tauri-apps/plugin-sql": "^2.3.2",
+    "@indyzai/pos-api": "*",
+    "@indyzai/pos-tauri": "*",
+    "@indyzai/pos-offline": "*",
+    "@indyzai/pos-shared": "*"
   },
   "devDependencies": {
     "@types/react": "^19.1.8",
