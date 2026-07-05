@@ -130,17 +130,42 @@ pub fn run() {
             }
 
             // Deep-link callback listener
+            // tauri-plugin-deep-link emits the payload as a JSON array of URL strings.
             app.listen_any("deep-link://new-url", move |event| {
                 let data = event.payload();
-                let url_str = data.trim_matches('"');
-                if let Ok(url) = url_str.parse::<tauri::Url>() {
-                    if url.scheme() == "indyzai-pos" && url.path().contains("auth/callback") {
-                        if let Some(code) = url
-                            .query_pairs()
-                            .find(|(key, _)| key == "code")
-                            .map(|(_, value)| value.to_string())
+
+                // Parse as JSON array first, fall back to single quoted string
+                let urls: Vec<String> = serde_json::from_str(data)
+                    .unwrap_or_else(|_| {
+                        // Legacy / single-string fallback
+                        let s = data.trim_matches('"').to_string();
+                        vec![s]
+                    });
+
+                for url_str in urls {
+                    if let Ok(url) = url_str.parse::<tauri::Url>() {
+                        if url.scheme() == "indyzai-pos" && url.path().contains("auth/callback") {
+                            if let Some(code) = url
+                                .query_pairs()
+                                .find(|(key, _)| key == "code")
+                                .map(|(_, value)| value.to_string())
+                            {
+                                let _ = handle.emit("auth-code", code);
+                            }
+                            return;
+                        }
+                        // Also handle HTTPS callback (production)
+                        if url.host_str() == Some("auth.indyzai.com")
+                            && url.path().contains("callback")
                         {
-                            let _ = handle.emit("auth-code", code);
+                            if let Some(code) = url
+                                .query_pairs()
+                                .find(|(key, _)| key == "code")
+                                .map(|(_, value)| value.to_string())
+                            {
+                                let _ = handle.emit("auth-code", code);
+                            }
+                            return;
                         }
                     }
                 }
