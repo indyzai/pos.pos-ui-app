@@ -1,8 +1,11 @@
 mod device_auth;
 mod printer;
 mod bluetooth;
+mod offline_store;
 
-use tauri::{AppHandle, Emitter, Listener};
+use tauri::{AppHandle, Emitter, Listener, Manager, State};
+use serde::Serialize;
+use offline_store::{OfflineStatus, OfflineStore};
 #[cfg(desktop)]
 use tauri::menu::Menu;
 
@@ -83,6 +86,20 @@ async fn authenticate_biometric(reason: String) -> Result<(), String> {
     device_auth::authenticate_device(reason).await
 }
 
+#[derive(Serialize)] struct OfflineServiceConfig { base_url: String, api_key: String }
+#[tauri::command]
+fn offline_service_config() -> Result<OfflineServiceConfig, String> {
+    let output = std::process::Command::new(std::env::var("POS_OFFLINE_SERVICE_BIN").unwrap_or_else(|_| "pos-offline-svc".into())).arg("key").output().map_err(|e| format!("POS offline service is not installed: {e}"))?;
+    if !output.status.success() { return Err("could not read POS offline service credential".into()); }
+    Ok(OfflineServiceConfig { base_url: "http://127.0.0.1:8765".into(), api_key: String::from_utf8(output.stdout).map_err(|_| "invalid offline service credential")?.trim().into() })
+}
+#[tauri::command] fn mobile_offline_enqueue(store: State<'_, OfflineStore>, idempotency_key: String, action: String, payload: serde_json::Value) -> Result<(), String> { store.enqueue(&idempotency_key, &action, &payload.to_string()) }
+#[tauri::command] fn mobile_offline_status(store: State<'_, OfflineStore>) -> Result<OfflineStatus, String> { store.status() }
+#[tauri::command] fn mobile_offline_pending(store: State<'_, OfflineStore>) -> Result<Vec<offline_store::OfflineCommand>, String> { store.pending() }
+#[tauri::command] fn mobile_offline_mark(store: State<'_, OfflineStore>, idempotency_key: String, status: String, conflict: Option<String>) -> Result<(), String> { store.mark(&idempotency_key, &status, conflict.as_deref()) }
+#[tauri::command] fn mobile_offline_catalog_replace(store: State<'_, OfflineStore>, snapshot: serde_json::Value) -> Result<(), String> { store.replace_catalog(&snapshot.to_string()) }
+#[tauri::command] fn mobile_offline_catalog(store: State<'_, OfflineStore>) -> Result<Option<serde_json::Value>, String> { store.catalog() }
+
 // ─── App entry point ──────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -92,6 +109,9 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
+            let path = app.path().app_data_dir().map_err(|e| e.to_string())?.join("offline-mobile.db");
+            if let Some(parent) = path.parent() { std::fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
+            app.manage(OfflineStore::open(&path)?);
             let handle = app.handle().clone();
 
             #[cfg(desktop)]
@@ -194,6 +214,13 @@ pub fn run() {
             bluetooth::scan_bluetooth_printers,
             bluetooth::pair_bluetooth_printer,
             bluetooth::print_bluetooth_payload,
+            offline_service_config,
+            mobile_offline_enqueue,
+            mobile_offline_status,
+            mobile_offline_pending,
+            mobile_offline_mark,
+            mobile_offline_catalog_replace,
+            mobile_offline_catalog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

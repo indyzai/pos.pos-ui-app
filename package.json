@@ -1,14 +1,15 @@
 {
   "name": "pos-ui-app",
   "private": true,
-  "version": "0.1.24",
+  "version": "0.1.25",
   "type": "module",
   "scripts": {
     "dev:web": "vite",
     "build:web": "tsc && vite build",
+    "prepare:bundle": "rm -rf bundle && mkdir -p bundle && unzip -q -o ${POS_UI_BUNDLE:-../pos.pos-ui/artifacts/pos-ui-bundle.zip} -d bundle",
     "preview": "vite preview",
     "dev": "tauri dev",
-    "build": "tauri build",
+    "build": "yarn prepare:bundle && tauri build",
     "build:android": "tauri android build --aab true",
     "build:ios": "tauri ios build",
     "build:macos": "tauri build --bundles dmg",

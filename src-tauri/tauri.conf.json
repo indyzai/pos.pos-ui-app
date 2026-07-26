@@ -1,13 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Indyz POS",
-  "version": "0.1.24",
+  "version": "0.1.25",
   "identifier": "com.indyz.ai.pos",
   "build": {
     "beforeDevCommand": "",
     "beforeBuildCommand": "",
     "devUrl": "http://localhost:3000",
-    "frontendDist": "../dist"
+    "frontendDist": "../bundle"
   },
   "app": {
     "windows": [
@@ -29,11 +29,6 @@
       "domains": [
         "auth.indyzai.com",
         "pos.indyzai.com"
-      ]
-    },
-    "sql": {
-      "preloadedDatabases": [
-        "sqlite:pos_db.sqlite"
       ]
     }
   },
