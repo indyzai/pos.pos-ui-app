@@ -189,10 +189,16 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install NDK 27
+      - name: Install Android build requirements
         run: |
-          sdkmanager --install "ndk;27.0.12077973"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
+          NDK_PATH="$ANDROID_HOME/ndk/27.0.12077973"
+          # Tauri checks NDK_HOME while other Android tooling checks the
+          # ANDROID_NDK_* names. Set all of them so it cannot silently select
+          # the runner's preinstalled NDK 29 instead of the tested NDK 27.
+          echo "NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
 
       - name: Prepare Android signing (if secrets present)
         if: env.ANDROID_KEYSTORE_BASE64 != ''
@@ -209,7 +215,9 @@ jobs:
           echo "keyPassword=$ANDROID_KEY_PASSWORD" >> src-tauri/gen/android/app/keystore.properties
 
       - name: Build Android (APK + AAB)
-        run: yarn tauri android build --target aarch64
+        # Verbose output preserves the underlying Gradle/Kotlin error. Without
+        # it Tauri only reports its outer "failed to assemble APK" wrapper.
+        run: yarn tauri android build --target aarch64 --verbose
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4

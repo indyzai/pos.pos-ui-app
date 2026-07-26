@@ -1,7 +1,7 @@
 {
   "name": "pos-ui-app",
   "private": true,
-  "version": "0.1.26",
+  "version": "0.1.27",
   "type": "module",
   "scripts": {
     "dev:web": "vite",
@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "dev": "yarn prepare:bundle && tauri dev",
     "build": "yarn prepare:bundle && tauri build",
-    "build:android": "tauri android build --aab true",
+    "build:android": "yarn prepare:bundle && tauri android build --apk --aab",
     "build:ios": "tauri ios build",
     "build:macos": "tauri build --bundles dmg",
     "build:windows": "tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc",
