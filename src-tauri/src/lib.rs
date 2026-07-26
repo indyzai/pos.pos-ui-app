@@ -9,6 +9,22 @@ use offline_store::{OfflineStatus, OfflineStore};
 #[cfg(desktop)]
 use tauri::menu::Menu;
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AuthDebugEvent {
+    stage: String,
+    detail: String,
+}
+
+fn emit_auth_debug(handle: &AppHandle, stage: impl Into<String>, detail: impl Into<String>) {
+    let event = AuthDebugEvent {
+        stage: stage.into(),
+        detail: detail.into(),
+    };
+    println!("[IndyzAuth] native stage={} detail={}", event.stage, event.detail);
+    let _ = handle.emit("auth-debug", event);
+}
+
 // ─── Auth window commands ─────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -54,7 +70,7 @@ async fn open_auth_window(handle: AppHandle, url: String) -> Result<(), String> 
     #[cfg(mobile)]
     {
         use tauri_plugin_opener::OpenerExt;
-        println!("[IndyzAuth] opening external browser for authentication");
+        emit_auth_debug(&handle, "browser-open-native", "opening-external-browser");
         handle
             .opener()
             .open_url(url, None::<String>)
@@ -173,12 +189,16 @@ pub fn run() {
 
                 for url_str in urls {
                     if let Ok(url) = url_str.parse::<tauri::Url>() {
-                        println!(
-                            "[IndyzAuth] deep-link received scheme={} host={:?} path={} has_code={}",
-                            url.scheme(),
-                            url.host_str(),
-                            url.path(),
-                            url.query_pairs().any(|(key, _)| key == "code"),
+                        emit_auth_debug(
+                            &handle,
+                            "deep-link-received",
+                            format!(
+                                "scheme={} host={} path={} has-code={}",
+                                url.scheme(),
+                                url.host_str().unwrap_or(""),
+                                url.path(),
+                                url.query_pairs().any(|(key, _)| key == "code"),
+                            ),
                         );
                         // indyzai-pos://auth/callback is parsed as host `auth`
                         // and path `/callback`; only checking the path drops the
@@ -193,7 +213,7 @@ pub fn run() {
                                 .find(|(key, _)| key == "code")
                                 .map(|(_, value)| value.to_string())
                             {
-                                println!("[IndyzAuth] emitting auth-code from custom callback");
+                                emit_auth_debug(&handle, "deep-link-accepted", "custom-callback");
                                 let _ = handle.emit("auth-code", code);
                             }
                             return;
@@ -207,7 +227,7 @@ pub fn run() {
                                 .find(|(key, _)| key == "code")
                                 .map(|(_, value)| value.to_string())
                             {
-                                println!("[IndyzAuth] emitting auth-code from HTTPS callback");
+                                emit_auth_debug(&handle, "deep-link-accepted", "https-callback");
                                 let _ = handle.emit("auth-code", code);
                             }
                             return;
