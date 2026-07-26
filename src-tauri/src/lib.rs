@@ -54,6 +54,7 @@ async fn open_auth_window(handle: AppHandle, url: String) -> Result<(), String> 
     #[cfg(mobile)]
     {
         use tauri_plugin_opener::OpenerExt;
+        println!("[IndyzAuth] opening external browser for authentication");
         handle
             .opener()
             .open_url(url, None::<String>)
@@ -61,6 +62,13 @@ async fn open_auth_window(handle: AppHandle, url: String) -> Result<(), String> 
     }
 
     Ok(())
+}
+
+/// Emits safe login diagnostics to the native application log. Never include
+/// OAuth codes, access tokens, refresh tokens, or full callback URLs here.
+#[tauri::command]
+fn auth_debug_log(stage: String, detail: String) {
+    println!("[IndyzAuth] ui stage={stage} detail={detail}");
 }
 
 #[tauri::command]
@@ -165,6 +173,13 @@ pub fn run() {
 
                 for url_str in urls {
                     if let Ok(url) = url_str.parse::<tauri::Url>() {
+                        println!(
+                            "[IndyzAuth] deep-link received scheme={} host={:?} path={} has_code={}",
+                            url.scheme(),
+                            url.host_str(),
+                            url.path(),
+                            url.query_pairs().any(|(key, _)| key == "code"),
+                        );
                         // indyzai-pos://auth/callback is parsed as host `auth`
                         // and path `/callback`; only checking the path drops the
                         // real Android browser callback.
@@ -178,6 +193,7 @@ pub fn run() {
                                 .find(|(key, _)| key == "code")
                                 .map(|(_, value)| value.to_string())
                             {
+                                println!("[IndyzAuth] emitting auth-code from custom callback");
                                 let _ = handle.emit("auth-code", code);
                             }
                             return;
@@ -191,6 +207,7 @@ pub fn run() {
                                 .find(|(key, _)| key == "code")
                                 .map(|(_, value)| value.to_string())
                             {
+                                println!("[IndyzAuth] emitting auth-code from HTTPS callback");
                                 let _ = handle.emit("auth-code", code);
                             }
                             return;
@@ -205,6 +222,7 @@ pub fn run() {
             // Auth window
             open_auth_window,
             close_auth_window,
+            auth_debug_log,
             // Device OS auth
             device_auth::authenticate_device,
             device_auth::check_device_auth_available,
