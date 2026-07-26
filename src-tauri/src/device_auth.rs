@@ -11,9 +11,70 @@
 //!   - Windows: Windows Hello
 //!   - Android/iOS: Biometric + PIN via Tauri plugin
 
+#[cfg(not(target_os = "android"))]
 use keyring::Entry;
 
+#[cfg(target_os = "android")]
+use serde::{Deserialize, Serialize};
+#[cfg(target_os = "android")]
+use tauri::Manager;
+
+/// Registers the Android Keystore implementation with Tauri's native plugin
+/// bridge. The existing `store/get/delete_device_token` commands below use the
+/// bridge, which keeps the frontend API platform-independent.
+pub fn init_secure_storage<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("secure-storage")
+        .setup(|app, api| {
+            #[cfg(target_os = "android")]
+            {
+                let handle = api.register_android_plugin(
+                    "com.indyz.ai.pos",
+                    "SecureStoragePlugin",
+                )?;
+                app.manage(SecureStoragePlugin(handle));
+            }
+            #[cfg(not(target_os = "android"))]
+            let _ = (app, api);
+            Ok(())
+        })
+        .build()
+}
+
+#[cfg(target_os = "android")]
+pub struct SecureStoragePlugin<R: tauri::Runtime>(tauri::plugin::PluginHandle<R>);
+
+#[cfg(target_os = "android")]
+#[derive(Serialize)]
+struct SecureStorageArgs<'a> {
+    service: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value: Option<&'a str>,
+}
+
+#[cfg(target_os = "android")]
+#[derive(Deserialize)]
+struct SecureStorageValue {
+    value: String,
+}
+
 /// Store a token in the OS keychain under the given service name.
+#[tauri::command]
+#[cfg(target_os = "android")]
+pub fn store_device_token(
+    plugin: tauri::State<'_, SecureStoragePlugin<tauri::Wry>>,
+    service: String,
+    token: String,
+) -> Result<(), String> {
+    plugin
+        .0
+        .run_mobile_plugin::<()>(
+            "set",
+            SecureStorageArgs { service: &service, value: Some(&token) },
+        )
+        .map_err(|e| format!("Android Keystore write failed: {e}"))
+}
+
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn store_device_token(service: String, token: String) -> Result<(), String> {
     let entry = Entry::new(&service, "indyzai-pos-device")
@@ -24,6 +85,23 @@ pub fn store_device_token(service: String, token: String) -> Result<(), String> 
 
 /// Retrieve a token from the OS keychain.
 #[tauri::command]
+#[cfg(target_os = "android")]
+pub fn get_device_token(
+    plugin: tauri::State<'_, SecureStoragePlugin<tauri::Wry>>,
+    service: String,
+) -> Result<String, String> {
+    plugin
+        .0
+        .run_mobile_plugin::<SecureStorageValue>(
+            "get",
+            SecureStorageArgs { service: &service, value: None },
+        )
+        .map(|value| value.value)
+        .map_err(|e| format!("Android Keystore read failed: {e}"))
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
 pub fn get_device_token(service: String) -> Result<String, String> {
     let entry = Entry::new(&service, "indyzai-pos-device")
         .map_err(|e| e.to_string())?;
@@ -32,6 +110,22 @@ pub fn get_device_token(service: String) -> Result<String, String> {
 }
 
 /// Delete a token from the OS keychain.
+#[tauri::command]
+#[cfg(target_os = "android")]
+pub fn delete_device_token(
+    plugin: tauri::State<'_, SecureStoragePlugin<tauri::Wry>>,
+    service: String,
+) -> Result<(), String> {
+    plugin
+        .0
+        .run_mobile_plugin::<()>(
+            "delete",
+            SecureStorageArgs { service: &service, value: None },
+        )
+        .map_err(|e| format!("Android Keystore delete failed: {e}"))
+}
+
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn delete_device_token(service: String) -> Result<(), String> {
     let entry = Entry::new(&service, "indyzai-pos-device")

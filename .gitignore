@@ -50,3 +50,4 @@ dist
 .next
 
 bundle/
+src-tauri/gen/android/app/src/main/java/com/indyz/ai/pos/generated

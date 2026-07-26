@@ -105,6 +105,7 @@ fn offline_service_config() -> Result<OfflineServiceConfig, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(device_auth::init_secure_storage())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
