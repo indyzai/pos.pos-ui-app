@@ -164,7 +164,14 @@ pub fn run() {
 
                 for url_str in urls {
                     if let Ok(url) = url_str.parse::<tauri::Url>() {
-                        if url.scheme() == "indyzai-pos" && url.path().contains("auth/callback") {
+                        // indyzai-pos://auth/callback is parsed as host `auth`
+                        // and path `/callback`; only checking the path drops the
+                        // real Android browser callback.
+                        if url.scheme() == "indyzai-pos"
+                            && ((url.host_str() == Some("auth")
+                                && url.path().starts_with("/callback"))
+                                || url.path().contains("auth/callback"))
+                        {
                             if let Some(code) = url
                                 .query_pairs()
                                 .find(|(key, _)| key == "code")

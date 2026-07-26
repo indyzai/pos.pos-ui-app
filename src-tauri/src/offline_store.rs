@@ -16,7 +16,20 @@ impl OfflineStore {
     }
     pub fn enqueue(&self, key: &str, action: &str, payload: &str) -> Result<(), String> { self.db.lock().map_err(|_| "offline database lock poisoned".to_string())?.execute("INSERT INTO offline_outbox(idempotency_key,action,payload) VALUES(?1,?2,?3) ON CONFLICT(idempotency_key) DO NOTHING", params![key,action,payload]).map_err(|e| e.to_string())?; Ok(()) }
     pub fn status(&self) -> Result<OfflineStatus, String> { let db=self.db.lock().map_err(|_| "offline database lock poisoned".to_string())?; Ok(OfflineStatus { pending: db.query_row("SELECT COUNT(*) FROM offline_outbox WHERE status='pending'",[],|r|r.get(0)).map_err(|e|e.to_string())?, conflicts: db.query_row("SELECT COUNT(*) FROM offline_outbox WHERE status='conflict'",[],|r|r.get(0)).map_err(|e|e.to_string())? }) }
-    pub fn pending(&self)->Result<Vec<OfflineCommand>,String>{let db=self.db.lock().map_err(|_|"offline database lock poisoned".to_string())?;let mut stmt=db.prepare("SELECT idempotency_key,action,payload,created_at FROM offline_outbox WHERE status='pending' AND next_attempt_at<=CURRENT_TIMESTAMP ORDER BY id LIMIT 50").map_err(|e|e.to_string())?;stmt.query_map([],|r|{let p:String=r.get(2)?;Ok(OfflineCommand{idempotency_key:r.get(0)?,action:r.get(1)?,payload:serde_json::from_str(&p).unwrap_or(serde_json::Value::Null),created_at:r.get(3)?})}).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())}
+    pub fn pending(&self) -> Result<Vec<OfflineCommand>, String> {
+        let db = self.db.lock().map_err(|_| "offline database lock poisoned".to_string())?;
+        let mut stmt = db.prepare("SELECT idempotency_key,action,payload,created_at FROM offline_outbox WHERE status='pending' AND next_attempt_at<=CURRENT_TIMESTAMP ORDER BY id LIMIT 50").map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |r| {
+            let payload: String = r.get(2)?;
+            Ok(OfflineCommand {
+                idempotency_key: r.get(0)?, action: r.get(1)?,
+                payload: serde_json::from_str(&payload).unwrap_or(serde_json::Value::Null),
+                created_at: r.get(3)?,
+            })
+        }).map_err(|e| e.to_string())?;
+        let commands = rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        Ok(commands)
+    }
     pub fn mark(&self,key:&str,status:&str,conflict:Option<&str>)->Result<(),String>{let db=self.db.lock().map_err(|_|"offline database lock poisoned".to_string())?;match status{"completed"=>db.execute("UPDATE offline_outbox SET status='completed' WHERE idempotency_key=?1",params![key]),"conflict"=>db.execute("UPDATE offline_outbox SET status='conflict',conflict=?2 WHERE idempotency_key=?1",params![key,conflict]),"retry"=>db.execute("UPDATE offline_outbox SET retry_count=retry_count+1,next_attempt_at=datetime('now','+' || MIN(retry_count+1,8) || ' minutes') WHERE idempotency_key=?1",params![key]),_=>return Err("unsupported sync status".into())}.map_err(|e|e.to_string())?;Ok(())}
     pub fn replace_catalog(&self,s:&str)->Result<(),String>{self.db.lock().map_err(|_|"offline database lock poisoned".to_string())?.execute("INSERT INTO offline_catalog(key,value,updated_at) VALUES('bootstrap',?1,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP",params![s]).map_err(|e|e.to_string())?;Ok(())}
     pub fn catalog(&self)->Result<Option<serde_json::Value>,String>{let db=self.db.lock().map_err(|_|"offline database lock poisoned".to_string())?;let s:Option<String>=db.query_row("SELECT value FROM offline_catalog WHERE key='bootstrap'",[],|r|r.get(0)).optional().map_err(|e|e.to_string())?;s.map(|v|serde_json::from_str(&v).map_err(|e|e.to_string())).transpose()}

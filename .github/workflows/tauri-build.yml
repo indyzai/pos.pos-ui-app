@@ -40,7 +40,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           gh release download --repo indyzai/pos.pos-ui -p "web-dist.zip" || true
-          unzip web-dist.zip -d dist || echo "Web artifacts not found, make sure they exist."
+          unzip web-dist.zip -d bundle || echo "Web artifacts not found, make sure they exist."
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -102,7 +102,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
           gh release download $VERSION --repo indyzai/pos.pos-ui -p "web-dist.zip" || gh release download --repo indyzai/pos.pos-ui -p "web-dist.zip"
-          unzip web-dist.zip -d dist
+          unzip web-dist.zip -d bundle
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -178,7 +178,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
           gh release download $VERSION --repo indyzai/pos.pos-ui -p "web-dist.zip" || gh release download --repo indyzai/pos.pos-ui -p "web-dist.zip"
-          unzip web-dist.zip -d dist
+          unzip web-dist.zip -d bundle
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
@@ -274,7 +274,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
           gh release download $VERSION --repo indyzai/pos.pos-ui -p "web-dist.zip" || gh release download --repo indyzai/pos.pos-ui -p "web-dist.zip"
-          unzip web-dist.zip -d dist
+          unzip web-dist.zip -d bundle
 
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1

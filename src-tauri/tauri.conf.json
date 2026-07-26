@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Indyz POS",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "identifier": "com.indyz.ai.pos",
   "build": {
-    "beforeDevCommand": "",
+    "beforeDevCommand": "node scripts/serve-bundle.mjs",
     "beforeBuildCommand": "",
-    "devUrl": "http://localhost:3000",
+    "devUrl": "http://127.0.0.1:3000",
     "frontendDist": "../bundle"
   },
   "app": {
