@@ -68,6 +68,19 @@ pub fn print_unix_usb(printer_name: &str, data: &[u8]) -> Result<(), String> {
         return Err("No OS printer selected or installed on this system. Please add a printer in your System Settings.".to_string());
     }
 
+    // Direct USB/serial mode for kiosk and Raspberry Pi deployments. The
+    // process must have udev/CUPS-group permission for these device nodes.
+    if printer_name.starts_with("/dev/usb/") || printer_name.starts_with("/dev/tty") {
+        let mut device = File::options()
+            .write(true)
+            .open(printer_name)
+            .map_err(|e| format!("Could not open USB/serial printer {printer_name}: {e}"))?;
+        device.write_all(data)
+            .map_err(|e| format!("Could not write to USB/serial printer: {e}"))?;
+        device.flush().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
     let temp_file_path = temp_dir().join("pos_receipt.bin");
     {
         let mut file = File::create(&temp_file_path).map_err(|e| e.to_string())?;
