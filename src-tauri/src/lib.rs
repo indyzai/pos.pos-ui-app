@@ -87,6 +87,44 @@ fn auth_debug_log(stage: String, detail: String) {
     println!("[IndyzAuth] ui stage={stage} detail={detail}");
 }
 
+/// Exchanges an OAuth callback code without going through the WebView network
+/// stack. This avoids Android WebView CORS preflights while keeping the code
+/// and tokens out of diagnostic output.
+#[tauri::command]
+async fn exchange_auth_code(code: String, auth_api_url: String) -> Result<serde_json::Value, String> {
+    if code.trim().is_empty() {
+        return Err("Authentication callback did not include a code".into());
+    }
+
+    let base = url::Url::parse(&auth_api_url)
+        .map_err(|_| "Invalid authentication API URL".to_string())?;
+    let is_local_http = base.scheme() == "http"
+        && matches!(base.host_str(), Some("localhost") | Some("127.0.0.1") | Some("::1"));
+    if base.scheme() != "https" && !is_local_http {
+        return Err("Authentication API must use HTTPS".into());
+    }
+
+    let endpoint = format!("{}/auth/api/v1/auth/app/success", auth_api_url.trim_end_matches('/'));
+    let response = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|_| "Could not initialize the authentication client".to_string())?
+        .post(endpoint)
+        .json(&serde_json::json!({ "code": code }))
+        .send()
+        .await
+        .map_err(|_| "Could not reach the authentication service".to_string())?;
+
+    if !response.status().is_success() {
+        return Err(format!("Authentication service returned {}", response.status()));
+    }
+
+    response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|_| "Authentication service returned an invalid response".to_string())
+}
+
 #[tauri::command]
 fn close_auth_window(handle: AppHandle) {
     #[cfg(desktop)]
@@ -243,6 +281,7 @@ pub fn run() {
             open_auth_window,
             close_auth_window,
             auth_debug_log,
+            exchange_auth_code,
             // Device OS auth
             device_auth::authenticate_device,
             device_auth::check_device_auth_available,
