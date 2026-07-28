@@ -129,17 +129,19 @@ jobs:
         with:
           args: --bundles ${{ matrix.bundles }}
 
-      - name: Upload desktop artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload desktop artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: desktop-build-${{ matrix.platform }}
-          path: |
+          tag_name: ${{ github.ref_name }}
+          files: |
             src-tauri/target/release/bundle/**/*.exe
             src-tauri/target/release/bundle/**/*.msi
             src-tauri/target/release/bundle/**/*.dmg
             src-tauri/target/release/bundle/**/*.AppImage
             src-tauri/target/release/bundle/**/*.deb
-          if-no-files-found: warn
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ────────────────────────────────────────────────
   #   ANDROID BUILD
@@ -219,14 +221,26 @@ jobs:
         # it Tauri only reports its outer "failed to assemble APK" wrapper.
         run: yarn tauri android build --target aarch64 --verbose
 
-      - name: Upload Android artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload Android artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: android-build
-          path: |
+          tag_name: ${{ github.ref_name }}
+          files: |
             src-tauri/gen/android/app/build/outputs/apk/**/*.apk
             src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
-          if-no-files-found: warn
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Android bundle to Google Play
+        if: secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.indyz.ai.pos
+          releaseFiles: ${{ github.workspace }}/src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+          track: production
+          status: completed
 
   # ────────────────────────────────────────────────
   #   PRE-FLIGHT CHECKS
@@ -317,54 +331,18 @@ jobs:
       - name: Build iOS
         run: yarn tauri ios build --release
 
-      - name: Upload iOS artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload iOS artifact to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ios-build
-          path: src-tauri/gen/apple/build/Release-iphoneos/*.ipa
-          if-no-files-found: warn
+          tag_name: ${{ github.ref_name }}
+          files: src-tauri/gen/apple/build/Release-iphoneos/*.ipa
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ────────────────────────────────────────────────
   #   PUBLISH (only on tag or manual dispatch with publish)
   # ────────────────────────────────────────────────
-  publish:
-    needs: [build-desktop, build-android, build-ios, check-ios]
-    if: |
-      always() &&
-      (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch') &&
-      (needs.build-desktop.result == 'success') &&
-      (needs.build-android.result == 'success') &&
-      (needs.build-ios.result == 'success' || needs.build-ios.result == 'skipped')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: '*build*'
-          merge-multiple: true
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: "Indyz POS ${{ github.ref_name }}"
-          body: "Automated release from GitHub Actions"
-          draft: false
-          prerelease: ${{ !startsWith(github.ref_name, 'v') || contains(github.ref_name, '-') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-          files: |
-            artifacts/**/*.exe
-            artifacts/**/*.msi
-            artifacts/**/*.AppImage
-            artifacts/**/*.deb
-            artifacts/**/*.rpm
-            artifacts/**/*.dmg
-            artifacts/**/*.apk
-            artifacts/**/*.aab
-            artifacts/**/*.ipa
-
   # ────────────────────────────────────────────────
   #   PUBLISH TO PLAY STORE
   # ────────────────────────────────────────────────
@@ -383,34 +361,3 @@ jobs:
           else
             echo "has-secret=false" >> $GITHUB_OUTPUT
           fi
-
-  publish-android:
-    name: Publish Android to Play Store
-    runs-on: ubuntu-latest
-    needs: [build-android, check-secrets]
-    if: needs.check-secrets.outputs.has-google-play-secret == 'true' && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Android Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: android-build
-          path: artifacts
-
-      - name: Get AAB File Path
-        id: aab_path
-        run: |
-          AAB_FILE=$(find artifacts -name '*.aab' | head -n 1)
-          echo "file=$AAB_FILE" >> $GITHUB_OUTPUT
-
-      - name: Publish to Google Play Store
-        if: steps.aab_path.outputs.file != ''
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.indyz.ai.pos
-          releaseFiles: ${{ steps.aab_path.outputs.file }}
-          track: production
-          status: completed
