@@ -3,12 +3,13 @@ package com.indyz.ai.pos
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
-import androidx.activity.enableEdgeToEdge
 
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     logAuthIntent("onCreate", intent)
-    enableEdgeToEdge()
+    // Do not opt this POS WebView into edge-to-edge. Android's navigation bar
+    // would otherwise cover payment and confirmation controls on every page.
+    // Tauri receives a normal inset viewport instead.
     super.onCreate(savedInstanceState)
   }
 
