@@ -3,14 +3,16 @@ package com.indyz.ai.pos
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import androidx.core.view.WindowCompat
 
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     logAuthIntent("onCreate", intent)
-    // Do not opt this POS WebView into edge-to-edge. Android's navigation bar
-    // would otherwise cover payment and confirmation controls on every page.
-    // Tauri receives a normal inset viewport instead.
     super.onCreate(savedInstanceState)
+    // Keep the Tauri WebView inside Android's system-bar and cutout insets.
+    // Android resolves these values for the actual device and orientation, so
+    // the app avoids navigation/camera cutouts without adding browser padding.
+    WindowCompat.setDecorFitsSystemWindows(window, true)
   }
 
   override fun onNewIntent(intent: Intent) {
