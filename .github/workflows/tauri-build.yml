@@ -270,6 +270,7 @@ jobs:
     needs: [check-ios]
     if: needs.check-ios.outputs.should_run == 'true'
     runs-on: macos-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -343,23 +344,51 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ────────────────────────────────────────────────
-  #   PUBLISH (only on tag or manual dispatch with publish)
+  #   PUBLISH RELEASE
+  #   Runs after all build jobs to create / update
+  #   the GitHub Release and mark it as non-draft.
   # ────────────────────────────────────────────────
-  # ────────────────────────────────────────────────
-  #   PUBLISH TO PLAY STORE
-  # ────────────────────────────────────────────────
-  check-secrets:
+  publish-release:
+    name: Publish GitHub Release
+    if: |
+      (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch') &&
+      needs.build-desktop.result == 'success' &&
+      needs.build-android.result == 'success'
+    needs: [build-desktop, build-android, build-ios]
+    # build-ios has continue-on-error and may be skipped — that is fine.
     runs-on: ubuntu-latest
-    outputs:
-      has-google-play-secret: ${{ steps.check.outputs.has-secret }}
     steps:
-      - id: check
-        shell: bash
+      - uses: actions/checkout@v4
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Indyz POS ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Indyz POS ${{ github.ref_name }}
+
+            ### 📦 Included Artifacts
+            | Platform | File(s) |
+            | :--- | :--- |
+            | 🪟 Windows | `.exe` (NSIS installer), `.msi` |
+            | 🐧 Linux | `.deb`, `.AppImage` |
+            | 🍎 macOS | `.dmg` |
+            | 🤖 Android | `.apk`, `.aab` |
+            | 📱 iOS | `.ipa` (if signing secrets are configured) |
+
+            ### 🚀 What's Changed
+            See the commit history or auto-generated release notes below.
+
+            ### ⬇️ Installation
+            Download the appropriate artifact for your platform from the assets below.
+            - **Windows**: Run the `.exe` installer or deploy the `.msi` via group policy.
+            - **macOS**: Open the `.dmg`, drag _Indyz POS_ to Applications.
+            - **Linux**: Install the `.deb` or run the `.AppImage` directly.
+            - **Android**: Side-load the `.apk` or distribute the `.aab` via Google Play.
+            - **iOS**: Install the `.ipa` via TestFlight or your MDM.
         env:
-          SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-        run: |
-          if [ -n "$SERVICE_ACCOUNT_JSON" ]; then
-            echo "has-secret=true" >> $GITHUB_OUTPUT
-          else
-            echo "has-secret=false" >> $GITHUB_OUTPUT
-          fi
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
