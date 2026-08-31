@@ -13,6 +13,7 @@ permissions:
 
 env:
   CARGO_HTTP_MULTIPLEXING: "false"
+  WEB_ARTIFACTS_REPO: "indyzai/pos.pos-ui-new"
 
 jobs:
   # ────────────────────────────────────────────────
@@ -39,7 +40,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          gh release download --repo indyzai/pos.pos-ui -p "web-dist.zip" || true
+          gh release download --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip" || true
           unzip web-dist.zip -d bundle || echo "Web artifacts not found, make sure they exist."
 
       - name: Install Rust
@@ -101,7 +102,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
-          gh release download $VERSION --repo indyzai/pos.pos-ui -p "web-dist.zip" || gh release download --repo indyzai/pos.pos-ui -p "web-dist.zip"
+          gh release download $VERSION --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip" || gh release download --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip"
           unzip web-dist.zip -d bundle
 
       - name: Install Rust
@@ -180,7 +181,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
-          gh release download $VERSION --repo indyzai/pos.pos-ui -p "web-dist.zip" || gh release download --repo indyzai/pos.pos-ui -p "web-dist.zip"
+          gh release download $VERSION --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip" || gh release download --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip"
           unzip web-dist.zip -d bundle
 
       - name: Setup JDK 17
@@ -296,7 +297,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
-          gh release download $VERSION --repo indyzai/pos.pos-ui -p "web-dist.zip" || gh release download --repo indyzai/pos.pos-ui -p "web-dist.zip"
+          gh release download $VERSION --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip" || gh release download --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip"
           unzip web-dist.zip -d bundle
 
       - name: Setup Xcode
