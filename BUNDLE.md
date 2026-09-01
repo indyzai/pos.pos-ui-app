@@ -1,9 +1,9 @@
 # POS UI bundle
 
-`pos.pos-ui` owns all POS UI code and produces the deployable static artifact:
+`pos.pos-ui-new` owns all POS UI code and produces the deployable static artifact:
 
 ```sh
-cd ../pos.pos-ui
+cd ../pos.pos-ui-new
 yarn bundle
 ```
 
