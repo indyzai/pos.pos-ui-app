@@ -40,5 +40,33 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
+	<!-- Camera — required for QR-code scanning -->
+	<key>NSCameraUsageDescription</key>
+	<string>Indyz POS uses the camera to scan QR codes for payments and product barcodes.</string>
+
+	<!-- Bluetooth LE — receipt printer discovery -->
+	<!-- NSBluetoothAlwaysUsageDescription is required on iOS 13+ -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Indyz POS uses Bluetooth to discover and connect to receipt printers.</string>
+	<!-- Legacy key required for iOS 12 and below -->
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Indyz POS uses Bluetooth to discover and connect to receipt printers.</string>
+
+	<!-- Face ID / Biometric authentication -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>Indyz POS uses Face ID to securely authenticate staff before accessing the POS.</string>
+
+	<!-- Local Network — required for LAN printer discovery and POS API on private networks -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Indyz POS accesses your local network to discover receipt printers and connect to the POS server.</string>
+
+	<!-- Bonjour services needed for local network printer discovery -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_ipp._tcp</string>
+		<string>_printer._tcp</string>
+		<string>_pdl-datastream._tcp</string>
+	</array>
 </dict>
 </plist>

@@ -1,8 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- AndroidTV support -->
+    <!-- ── Network ─────────────────────────────────────────── -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+
+    <!-- ── Camera — QR code scanning ──────────────────────── -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
+
+    <!-- ── Bluetooth LE — receipt printer discovery (API 31+) -->
+    <!-- BLUETOOTH_SCAN: scan for nearby BLE devices without location data -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="31" />
+    <!-- BLUETOOTH_CONNECT: connect to a paired/discovered BLE printer -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"
+        tools:targetApi="31" />
+    <!-- BLUETOOTH_ADVERTISE: optional — only if the POS advertises itself -->
+    <!-- <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" tools:targetApi="31" /> -->
+
+    <!-- Legacy Bluetooth for devices running Android 11 and below -->
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <!-- On Android 6–11 BLE scan requires ACCESS_FINE_LOCATION -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"
+        android:maxSdkVersion="30" />
+
+    <!-- Declare BLE as optional so the app is visible on non-BLE devices -->
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
+    <!-- ── Biometric / Device authentication ───────────────── -->
+    <!-- USE_BIOMETRIC covers fingerprint + face + iris on API 29+ -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Legacy fingerprint for older ROMs -->
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+
+    <!-- ── Notifications — print job / sync status alerts ─── -->
+    <!-- Required at runtime on Android 13+ (API 33) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- ── Vibration — haptic feedback on payment confirm ─── -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- ── AndroidTV support ────────────────────────────────── -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
     <queries>
