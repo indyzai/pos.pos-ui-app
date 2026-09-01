@@ -139,29 +139,46 @@ async fn exchange_auth_code(handle: AppHandle, code: String, auth_api_url: Strin
 
     emit_auth_debug(&handle, "token-exchange-building-client", "begin");
 
-    // Build the reqwest client using rustls with bundled Mozilla WebPKI roots
-    // (webpki-roots crate). This avoids calling rustls-native-certs which scans
-    // Android's system certificate store and can hang for 20-30 s on some
-    // Android versions / ROM builds.
-    let mut root_store = rustls::RootCertStore::empty();
-    root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    let tls_config = rustls::ClientConfig::builder()
-        .with_root_certificates(root_store)
-        .with_no_client_auth();
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(20))
-        .connect_timeout(std::time::Duration::from_secs(8))
-        .user_agent("Indyz-POS-Tauri/1.0")
-        // Use our pre-built rustls config with bundled WebPKI roots.
-        .use_preconfigured_tls(tls_config)
-        // Disable connection pooling so a previous hung connection cannot
-        // block this single-shot exchange on Android.
-        .pool_max_idle_per_host(0)
-        .build()
-        .map_err(|error| {
+    // Building a Rustls verifier may synchronously touch Android platform
+    // state. Do it off the Tauri command runtime and bound the work: a stalled
+    // native client must not block the WebView-first authentication flow.
+    let client = match tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        tokio::task::spawn_blocking(|| {
+            println!("[IndyzAuth] native token-exchange client-init root-store");
+            let mut root_store = rustls::RootCertStore::empty();
+            root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+            println!("[IndyzAuth] native token-exchange client-init tls-config");
+            let tls_config = rustls::ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+            println!("[IndyzAuth] native token-exchange client-init reqwest-builder");
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(20))
+                .connect_timeout(std::time::Duration::from_secs(8))
+                .user_agent("Indyz-POS-Tauri/1.0")
+                .use_preconfigured_tls(tls_config)
+                .pool_max_idle_per_host(0)
+                .build()
+                .map_err(|error| error.to_string())
+        }),
+    )
+    .await
+    {
+        Err(_) => {
+            emit_auth_debug(&handle, "token-exchange-failed", "client-init-timeout=8s");
+            return Err("Native authentication client initialization timed out".into());
+        }
+        Ok(Err(error)) => {
+            emit_auth_debug(&handle, "token-exchange-failed", format!("client-init-task={error}"));
+            return Err("Could not initialize the authentication client".into());
+        }
+        Ok(Ok(Err(error))) => {
             emit_auth_debug(&handle, "token-exchange-failed", format!("client-init={error}"));
-            "Could not initialize the authentication client".to_string()
-        })?;
+            return Err("Could not initialize the authentication client".into());
+        }
+        Ok(Ok(Ok(client))) => client,
+    };
     emit_auth_debug(&handle, "token-exchange-client-ready", "ok");
 
 
