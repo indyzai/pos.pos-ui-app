@@ -6,6 +6,8 @@ This repository hosts the native client shell that packages and embeds the front
 
 ---
 
+update
+
 ## 🎯 Supported Platforms
 
 | Platform | Output Artifacts | Status |
