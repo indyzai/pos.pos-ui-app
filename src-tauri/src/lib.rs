@@ -130,25 +130,58 @@ async fn exchange_auth_code(handle: AppHandle, code: String, auth_api_url: Strin
     }
 
     let endpoint = format!("{}/auth/api/v1/auth/app/success", auth_api_url.trim_end_matches('/'));
-    emit_auth_debug(&handle, "token-exchange-start", format!("host={}", base.host_str().unwrap_or("")));
+    emit_auth_debug(&handle, "token-exchange-start", format!(
+        "host={} scheme={} endpoint={}",
+        base.host_str().unwrap_or(""),
+        base.scheme(),
+        endpoint,
+    ));
+
+    emit_auth_debug(&handle, "token-exchange-building-client", "begin");
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .connect_timeout(std::time::Duration::from_secs(8))
         .user_agent("Indyz-POS-Tauri/1.0")
         .build()
-        .map_err(|_| {
-            emit_auth_debug(&handle, "token-exchange-failed", "client-init");
+        .map_err(|error| {
+            emit_auth_debug(&handle, "token-exchange-failed", format!("client-init={error}"));
             "Could not initialize the authentication client".to_string()
         })?;
-    let response = client
-        .post(endpoint)
-        .json(&serde_json::json!({ "code": code }))
+    emit_auth_debug(&handle, "token-exchange-client-ready", "ok");
+
+    emit_auth_debug(&handle, "token-exchange-sending-request", format!(
+        "method=POST url={endpoint}",
+    ));
+    let request = client
+        .post(&endpoint)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(reqwest::header::ACCEPT, "application/json")
+        .json(&serde_json::json!({ "code": code }));
+    emit_auth_debug(&handle, "token-exchange-request-built", "awaiting-send");
+
+    let response = request
         .send()
         .await
         .map_err(|error| {
-            emit_auth_debug(&handle, "token-exchange-failed", format!("network={error}"));
+            let kind = if error.is_timeout() {
+                "timeout"
+            } else if error.is_connect() {
+                "connect"
+            } else if error.is_request() {
+                "request"
+            } else if error.is_body() {
+                "body"
+            } else {
+                "unknown"
+            };
+            emit_auth_debug(
+                &handle,
+                "token-exchange-failed",
+                format!("network-kind={kind} network-detail={error}"),
+            );
             "Could not reach the authentication service".to_string()
         })?;
+    emit_auth_debug(&handle, "token-exchange-response-received", "reading-headers");
 
     let status = response.status();
     let content_type = response
