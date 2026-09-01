@@ -31,11 +31,12 @@ once_cell = "1.19"
 rusqlite = { version = "0.32", features = ["bundled"] }
 # Authentication-code exchange is performed by the native host so Android's
 # WebView does not need a cross-origin browser request.
-# On Android we use native-tls (Android's built-in TLS) to avoid the rustls
-# CA-store scan that hangs for up to 30 s on some Android versions.
-# On all other platforms we keep rustls for consistency and security.
-[target.'cfg(target_os = "android")'.dependencies]
-reqwest = { version = "0.13.2", default-features = false, features = ["json", "native-tls"] }
-
-[target.'cfg(not(target_os = "android"))'.dependencies]
+# We use rustls on all platforms (pure Rust, no OpenSSL required for cross-
+# compilation to aarch64-android). The CA hang on Android is avoided by using
+# bundled Mozilla WebPKI roots instead of scanning the system cert store.
 reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls"] }
+# Bundled Mozilla root certificates — loaded explicitly in the reqwest client
+# so Android's system-cert-store is never scanned (avoids 20-30 s hang).
+webpki-roots = "0.26"
+# Direct rustls access for building ClientConfig with bundled WebPKI roots.
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
