@@ -159,9 +159,12 @@ async fn exchange_auth_code(handle: AppHandle, code: String, auth_api_url: Strin
         .json(&serde_json::json!({ "code": code }));
     emit_auth_debug(&handle, "token-exchange-request-built", "awaiting-send");
 
-    let response = request
-        .send()
+    let response = tokio::time::timeout(std::time::Duration::from_secs(15), request.send())
         .await
+        .map_err(|_| {
+            emit_auth_debug(&handle, "token-exchange-failed", "native-request-timeout=15s");
+            "Authentication service request timed out".to_string()
+        })?
         .map_err(|error| {
             let kind = if error.is_timeout() {
                 "timeout"
