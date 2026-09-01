@@ -139,13 +139,21 @@ async fn exchange_auth_code(handle: AppHandle, code: String, auth_api_url: Strin
 
     emit_auth_debug(&handle, "token-exchange-building-client", "begin");
 
-    // Build the reqwest client. On Android, native-tls is compiled in (see
-    // Cargo.toml) so Android's own TLS stack is used, avoiding the 20-30 s
-    // CA-store scan that rustls performs on first use on some Android versions.
+    // Build the reqwest client using rustls with bundled Mozilla WebPKI roots
+    // (webpki-roots crate). This avoids calling rustls-native-certs which scans
+    // Android's system certificate store and can hang for 20-30 s on some
+    // Android versions / ROM builds.
+    let mut root_store = rustls::RootCertStore::empty();
+    root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let tls_config = rustls::ClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .connect_timeout(std::time::Duration::from_secs(8))
         .user_agent("Indyz-POS-Tauri/1.0")
+        // Use our pre-built rustls config with bundled WebPKI roots.
+        .use_preconfigured_tls(tls_config)
         // Disable connection pooling so a previous hung connection cannot
         // block this single-shot exchange on Android.
         .pool_max_idle_per_host(0)
@@ -155,6 +163,7 @@ async fn exchange_auth_code(handle: AppHandle, code: String, auth_api_url: Strin
             "Could not initialize the authentication client".to_string()
         })?;
     emit_auth_debug(&handle, "token-exchange-client-ready", "ok");
+
 
     // Probe raw TCP reachability before the full TLS+HTTP round-trip.
     // This lets us distinguish "server unreachable/DNS failure" from a
