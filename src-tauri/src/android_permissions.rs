@@ -6,6 +6,8 @@
 
 #[cfg(target_os = "android")]
 use serde::Deserialize;
+#[cfg(target_os = "android")]
+use tauri::Manager;
 
 #[cfg(target_os = "android")]
 pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
