@@ -1,4 +1,5 @@
 mod device_auth;
+mod android_permissions;
 mod printer;
 mod bluetooth;
 mod offline_store;
@@ -339,6 +340,7 @@ fn offline_service_config() -> Result<OfflineServiceConfig, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(device_auth::init_secure_storage())
+        .plugin(android_permissions::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
@@ -486,6 +488,9 @@ pub fn run() {
             bluetooth::scan_bluetooth_printers,
             bluetooth::pair_bluetooth_printer,
             bluetooth::print_bluetooth_payload,
+            android_permissions::request_android_bluetooth_permissions,
+            android_permissions::request_android_notification_permission,
+            android_permissions::request_android_camera_permission,
             offline_service_config,
             mobile_offline_enqueue,
             mobile_offline_status,
