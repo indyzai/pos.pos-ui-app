@@ -31,4 +31,11 @@ once_cell = "1.19"
 rusqlite = { version = "0.32", features = ["bundled"] }
 # Authentication-code exchange is performed by the native host so Android's
 # WebView does not need a cross-origin browser request.
+# On Android we use native-tls (Android's built-in TLS) to avoid the rustls
+# CA-store scan that hangs for up to 30 s on some Android versions.
+# On all other platforms we keep rustls for consistency and security.
+[target.'cfg(target_os = "android")'.dependencies]
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "native-tls"] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
 reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls"] }

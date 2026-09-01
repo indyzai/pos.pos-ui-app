@@ -138,16 +138,41 @@ async fn exchange_auth_code(handle: AppHandle, code: String, auth_api_url: Strin
     ));
 
     emit_auth_debug(&handle, "token-exchange-building-client", "begin");
+
+    // Build the reqwest client. On Android, native-tls is compiled in (see
+    // Cargo.toml) so Android's own TLS stack is used, avoiding the 20-30 s
+    // CA-store scan that rustls performs on first use on some Android versions.
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .connect_timeout(std::time::Duration::from_secs(8))
         .user_agent("Indyz-POS-Tauri/1.0")
+        // Disable connection pooling so a previous hung connection cannot
+        // block this single-shot exchange on Android.
+        .pool_max_idle_per_host(0)
         .build()
         .map_err(|error| {
             emit_auth_debug(&handle, "token-exchange-failed", format!("client-init={error}"));
             "Could not initialize the authentication client".to_string()
         })?;
     emit_auth_debug(&handle, "token-exchange-client-ready", "ok");
+
+    // Probe raw TCP reachability before the full TLS+HTTP round-trip.
+    // This lets us distinguish "server unreachable/DNS failure" from a
+    // TLS-layer hang in the debug log.
+    let tcp_probe_host = format!(
+        "{}:{}",
+        base.host_str().unwrap_or("localhost"),
+        base.port_or_known_default().unwrap_or(443),
+    );
+    emit_auth_debug(&handle, "token-exchange-tcp-probe", format!("addr={tcp_probe_host}"));
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(6),
+        tokio::net::TcpStream::connect(&tcp_probe_host),
+    ).await {
+        Ok(Ok(_))   => emit_auth_debug(&handle, "token-exchange-tcp-probe", "reachable"),
+        Ok(Err(e))  => emit_auth_debug(&handle, "token-exchange-tcp-probe", format!("tcp-error={e}")),
+        Err(_)      => emit_auth_debug(&handle, "token-exchange-tcp-probe", "timeout-6s"),
+    }
 
     emit_auth_debug(&handle, "token-exchange-sending-request", format!(
         "method=POST url={endpoint}",
@@ -159,11 +184,19 @@ async fn exchange_auth_code(handle: AppHandle, code: String, auth_api_url: Strin
         .json(&serde_json::json!({ "code": code }));
     emit_auth_debug(&handle, "token-exchange-request-built", "awaiting-send");
 
-    let response = tokio::time::timeout(std::time::Duration::from_secs(15), request.send())
+    // Spawn onto a fresh Tokio task so that any OS-level blocking inside
+    // Android's TLS stack (native-tls → conscrypt) does not starve the shared
+    // Tauri command-executor threads.
+    let request_task = tokio::spawn(request.send());
+    let response = tokio::time::timeout(std::time::Duration::from_secs(15), request_task)
         .await
         .map_err(|_| {
             emit_auth_debug(&handle, "token-exchange-failed", "native-request-timeout=15s");
             "Authentication service request timed out".to_string()
+        })?
+        .map_err(|join_err| {
+            emit_auth_debug(&handle, "token-exchange-failed", format!("task-panic={join_err}"));
+            "Authentication request task panicked".to_string()
         })?
         .map_err(|error| {
             let kind = if error.is_timeout() {
@@ -185,6 +218,7 @@ async fn exchange_auth_code(handle: AppHandle, code: String, auth_api_url: Strin
             "Could not reach the authentication service".to_string()
         })?;
     emit_auth_debug(&handle, "token-exchange-response-received", "reading-headers");
+
 
     let status = response.status();
     let content_type = response
