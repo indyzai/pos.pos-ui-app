@@ -36,12 +36,11 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Download web artifacts
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-        run: |
-          gh release download --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip" || true
-          unzip web-dist.zip -d bundle || echo "Web artifacts not found, make sure they exist."
+        uses: ./.github/actions/download-web-artifacts
+        continue-on-error: true
+        with:
+          repo: ${{ env.WEB_ARTIFACTS_REPO }}
+          github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -97,13 +96,10 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Download web artifacts
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          gh release download $VERSION --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip" || gh release download --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip"
-          unzip web-dist.zip -d bundle
+        uses: ./.github/actions/download-web-artifacts
+        with:
+          repo: ${{ env.WEB_ARTIFACTS_REPO }}
+          github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -176,13 +172,10 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Download web artifacts
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          gh release download $VERSION --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip" || gh release download --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip"
-          unzip web-dist.zip -d bundle
+        uses: ./.github/actions/download-web-artifacts
+        with:
+          repo: ${{ env.WEB_ARTIFACTS_REPO }}
+          github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
@@ -293,13 +286,10 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Download web artifacts
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          gh release download $VERSION --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip" || gh release download --repo "$WEB_ARTIFACTS_REPO" -p "web-dist.zip"
-          unzip web-dist.zip -d bundle
+        uses: ./.github/actions/download-web-artifacts
+        with:
+          repo: ${{ env.WEB_ARTIFACTS_REPO }}
+          github-token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1

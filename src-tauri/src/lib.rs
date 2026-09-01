@@ -91,38 +91,65 @@ fn auth_debug_log(stage: String, detail: String) {
 /// stack. This avoids Android WebView CORS preflights while keeping the code
 /// and tokens out of diagnostic output.
 #[tauri::command]
-async fn exchange_auth_code(code: String, auth_api_url: String) -> Result<serde_json::Value, String> {
+async fn exchange_auth_code(handle: AppHandle, code: String, auth_api_url: String) -> Result<serde_json::Value, String> {
     if code.trim().is_empty() {
+        emit_auth_debug(&handle, "token-exchange-rejected", "empty-code");
         return Err("Authentication callback did not include a code".into());
     }
 
     let base = url::Url::parse(&auth_api_url)
-        .map_err(|_| "Invalid authentication API URL".to_string())?;
+        .map_err(|_| {
+            emit_auth_debug(&handle, "token-exchange-rejected", "invalid-auth-api-url");
+            "Invalid authentication API URL".to_string()
+        })?;
     let is_local_http = base.scheme() == "http"
         && matches!(base.host_str(), Some("localhost") | Some("127.0.0.1") | Some("::1"));
     if base.scheme() != "https" && !is_local_http {
+        emit_auth_debug(&handle, "token-exchange-rejected", "auth-api-must-use-https");
         return Err("Authentication API must use HTTPS".into());
     }
 
     let endpoint = format!("{}/auth/api/v1/auth/app/success", auth_api_url.trim_end_matches('/'));
-    let response = reqwest::Client::builder()
+    emit_auth_debug(&handle, "token-exchange-start", format!("host={}", base.host_str().unwrap_or("")));
+    let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .build()
-        .map_err(|_| "Could not initialize the authentication client".to_string())?
+        .map_err(|_| {
+            emit_auth_debug(&handle, "token-exchange-failed", "client-init");
+            "Could not initialize the authentication client".to_string()
+        })?;
+    let response = client
         .post(endpoint)
         .json(&serde_json::json!({ "code": code }))
         .send()
         .await
-        .map_err(|_| "Could not reach the authentication service".to_string())?;
+        .map_err(|error| {
+            emit_auth_debug(&handle, "token-exchange-failed", format!("network={error}"));
+            "Could not reach the authentication service".to_string()
+        })?;
 
     if !response.status().is_success() {
+        emit_auth_debug(&handle, "token-exchange-failed", format!("http-status={}", response.status()));
         return Err(format!("Authentication service returned {}", response.status()));
     }
 
-    response
+    emit_auth_debug(&handle, "token-exchange-response", "http-status=success");
+    let payload = response
         .json::<serde_json::Value>()
         .await
-        .map_err(|_| "Authentication service returned an invalid response".to_string())
+        .map_err(|_| {
+            emit_auth_debug(&handle, "token-exchange-failed", "invalid-json");
+            "Authentication service returned an invalid response".to_string()
+        })?;
+    let has_access_token = payload.pointer("/tokens/accessToken").and_then(|value| value.as_str()).is_some();
+    let has_refresh_token = payload.pointer("/tokens/refreshToken").and_then(|value| value.as_str()).is_some();
+    let has_user = payload.get("user").is_some();
+    emit_auth_debug(
+        &handle,
+        "token-exchange-success",
+        format!("access={has_access_token} refresh={has_refresh_token} user={has_user}"),
+    );
+    Ok(payload)
 }
 
 #[tauri::command]

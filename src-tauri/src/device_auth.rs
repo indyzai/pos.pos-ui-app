@@ -90,14 +90,23 @@ pub fn get_device_token(
     plugin: tauri::State<'_, SecureStoragePlugin<tauri::Wry>>,
     service: String,
 ) -> Result<String, String> {
-    plugin
+    println!("[IndyzAuth] native keychain-read start service={service}");
+    match plugin
         .0
         .run_mobile_plugin::<SecureStorageValue>(
             "get",
             SecureStorageArgs { service: &service, value: None },
         )
-        .map(|value| value.value)
-        .map_err(|e| format!("Android Keystore read failed: {e}"))
+    {
+        Ok(value) => {
+            println!("[IndyzAuth] native keychain-read success service={service}");
+            Ok(value.value)
+        }
+        Err(error) => {
+            println!("[IndyzAuth] native keychain-read failed service={service} error={error}");
+            Err(format!("Android Keystore read failed: {error}"))
+        }
+    }
 }
 
 #[cfg(not(target_os = "android"))]

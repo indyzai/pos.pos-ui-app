@@ -1,0 +1,60 @@
+name: Download Web Artifacts
+description: >
+  Downloads the `web-dist.zip` bundle from a GitHub Release of the web UI
+  repository and extracts it into the `bundle/` directory expected by Tauri.
+
+inputs:
+  repo:
+    description: 'GitHub repository to download from (e.g. indyzai/pos.pos-ui-new)'
+    required: true
+  version:
+    description: 'Release tag to download (e.g. v1.0.1). Falls back to latest if not found.'
+    required: false
+    default: ''
+  github-token:
+    description: 'GitHub token with read access to the release assets.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Download web artifacts
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        REPO="${{ inputs.repo }}"
+        VERSION="${{ inputs.version }}"
+
+        if [ -z "$VERSION" ]; then
+          VERSION="${GITHUB_REF#refs/tags/}"
+        fi
+
+        echo "──────────────────────────────────────────"
+        echo "  Web Artifacts Download"
+        echo "  Repo   : $REPO"
+        echo "  Version: ${VERSION:-latest}"
+        echo "──────────────────────────────────────────"
+
+        if [ -n "$VERSION" ] && [ "$VERSION" != "refs/heads/main" ]; then
+          echo "→ Attempting tagged release: $VERSION"
+          gh release download "$VERSION" --repo "$REPO" -p "web-dist.zip" \
+            && echo "✓ Downloaded $VERSION from $REPO" \
+            || {
+              echo "⚠ Tagged release not found, falling back to latest…"
+              gh release download --repo "$REPO" -p "web-dist.zip" \
+                && echo "✓ Downloaded latest from $REPO"
+            }
+        else
+          echo "→ Downloading latest release from $REPO"
+          gh release download --repo "$REPO" -p "web-dist.zip" \
+            && echo "✓ Downloaded latest from $REPO"
+        fi
+
+        DOWNLOADED_VERSION=$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null || echo "unknown")
+        echo "  Bundle version : $DOWNLOADED_VERSION"
+        echo "──────────────────────────────────────────"
+
+        rm -rf bundle
+        unzip -q web-dist.zip -d bundle
+        echo "✓ Bundle extracted to bundle/ ($(find bundle -type f | wc -l | tr -d ' ') files)"
