@@ -25,6 +25,26 @@ fn emit_auth_debug(handle: &AppHandle, stage: impl Into<String>, detail: impl In
     let _ = handle.emit("auth-debug", event);
 }
 
+/// Return useful API error context without ever writing credentials, OAuth
+/// codes, or complete response payloads to Android logs.
+fn safe_api_error_detail(body: &str) -> String {
+    let parsed = serde_json::from_str::<serde_json::Value>(body).ok();
+    let message = parsed
+        .as_ref()
+        .and_then(|value| value.get("message").or_else(|| value.get("error")))
+        .and_then(|value| value.as_str())
+        .unwrap_or("no-message");
+    message.chars().take(240).collect()
+}
+
+fn response_keys(value: &serde_json::Value, key: &str) -> String {
+    value
+        .get(key)
+        .and_then(|item| item.as_object())
+        .map(|object| object.keys().cloned().collect::<Vec<_>>().join(","))
+        .unwrap_or_else(|| "none".into())
+}
+
 // ─── Auth window commands ─────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -113,6 +133,8 @@ async fn exchange_auth_code(handle: AppHandle, code: String, auth_api_url: Strin
     emit_auth_debug(&handle, "token-exchange-start", format!("host={}", base.host_str().unwrap_or("")));
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
+        .connect_timeout(std::time::Duration::from_secs(8))
+        .user_agent("Indyz-POS-Tauri/1.0")
         .build()
         .map_err(|_| {
             emit_auth_debug(&handle, "token-exchange-failed", "client-init");
@@ -128,17 +150,39 @@ async fn exchange_auth_code(handle: AppHandle, code: String, auth_api_url: Strin
             "Could not reach the authentication service".to_string()
         })?;
 
-    if !response.status().is_success() {
-        emit_auth_debug(&handle, "token-exchange-failed", format!("http-status={}", response.status()));
-        return Err(format!("Authentication service returned {}", response.status()));
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("unknown");
+    let content_length = response
+        .headers()
+        .get(reqwest::header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("unknown");
+    emit_auth_debug(
+        &handle,
+        "token-exchange-http-response",
+        format!("status={status} content-type={content_type} content-length={content_length}"),
+    );
+    let body = response.text().await.map_err(|error| {
+        emit_auth_debug(&handle, "token-exchange-failed", format!("response-read={error}"));
+        "Could not read the authentication service response".to_string()
+    })?;
+
+    if !status.is_success() {
+        emit_auth_debug(
+            &handle,
+            "token-exchange-failed",
+            format!("http-status={status} api-message={}", safe_api_error_detail(&body)),
+        );
+        return Err(format!("Authentication service returned {status}"));
     }
 
-    emit_auth_debug(&handle, "token-exchange-response", "http-status=success");
-    let payload = response
-        .json::<serde_json::Value>()
-        .await
-        .map_err(|_| {
+    let payload = serde_json::from_str::<serde_json::Value>(&body).map_err(|error| {
             emit_auth_debug(&handle, "token-exchange-failed", "invalid-json");
+            println!("[IndyzAuth] native token-exchange invalid-json error={error}");
             "Authentication service returned an invalid response".to_string()
         })?;
     let has_access_token = payload.pointer("/tokens/accessToken").and_then(|value| value.as_str()).is_some();
@@ -147,7 +191,11 @@ async fn exchange_auth_code(handle: AppHandle, code: String, auth_api_url: Strin
     emit_auth_debug(
         &handle,
         "token-exchange-success",
-        format!("access={has_access_token} refresh={has_refresh_token} user={has_user}"),
+        format!(
+            "access={has_access_token} refresh={has_refresh_token} user={has_user} tokens-keys={} user-keys={}",
+            response_keys(&payload, "tokens"),
+            response_keys(&payload, "user"),
+        ),
     );
     Ok(payload)
 }
@@ -243,14 +291,17 @@ pub fn run() {
             // tauri-plugin-deep-link emits the payload as a JSON array of URL strings.
             app.listen_any("deep-link://new-url", move |event| {
                 let data = event.payload();
+                emit_auth_debug(&handle, "deep-link-event", format!("payload-bytes={}", data.len()));
 
                 // Parse as JSON array first, fall back to single quoted string
-                let urls: Vec<String> = serde_json::from_str(data)
-                    .unwrap_or_else(|_| {
+                let urls: Vec<String> = serde_json::from_str(data).unwrap_or_else(|error| {
+                        emit_auth_debug(&handle, "deep-link-payload-fallback", format!("json-error={error}"));
                         // Legacy / single-string fallback
                         let s = data.trim_matches('"').to_string();
                         vec![s]
                     });
+
+                emit_auth_debug(&handle, "deep-link-urls", format!("count={}", urls.len()));
 
                 for url_str in urls {
                     if let Ok(url) = url_str.parse::<tauri::Url>() {
@@ -279,7 +330,12 @@ pub fn run() {
                                 .map(|(_, value)| value.to_string())
                             {
                                 emit_auth_debug(&handle, "deep-link-accepted", "custom-callback");
-                                let _ = handle.emit("auth-code", code);
+                                match handle.emit("auth-code", code) {
+                                    Ok(()) => emit_auth_debug(&handle, "auth-code-event", "custom-emitted"),
+                                    Err(error) => emit_auth_debug(&handle, "auth-code-event-failed", error.to_string()),
+                                }
+                            } else {
+                                emit_auth_debug(&handle, "deep-link-rejected", "custom-callback-missing-code");
                             }
                             return;
                         }
@@ -293,10 +349,18 @@ pub fn run() {
                                 .map(|(_, value)| value.to_string())
                             {
                                 emit_auth_debug(&handle, "deep-link-accepted", "https-callback");
-                                let _ = handle.emit("auth-code", code);
+                                match handle.emit("auth-code", code) {
+                                    Ok(()) => emit_auth_debug(&handle, "auth-code-event", "https-emitted"),
+                                    Err(error) => emit_auth_debug(&handle, "auth-code-event-failed", error.to_string()),
+                                }
+                            } else {
+                                emit_auth_debug(&handle, "deep-link-rejected", "https-callback-missing-code");
                             }
                             return;
                         }
+                        emit_auth_debug(&handle, "deep-link-ignored", "callback-host-or-path-did-not-match");
+                    } else {
+                        emit_auth_debug(&handle, "deep-link-rejected", "invalid-url");
                     }
                 }
             });
