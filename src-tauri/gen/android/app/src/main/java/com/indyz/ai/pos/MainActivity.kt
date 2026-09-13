@@ -24,7 +24,7 @@ class MainActivity : TauriActivity() {
 
   private fun logAuthIntent(stage: String, intent: Intent?) {
     val data = intent?.data
-    if (data?.scheme == "indyzai-pos" || data?.host == "auth.indyzai.com") {
+    if (data?.scheme == "indyzai-pos-desktop" || data?.scheme == "indyzai-pos" || data?.host == "auth.indyzai.com") {
       Log.i(
         "IndyzAuth",
         "$stage action=${intent.action} scheme=${data.scheme} host=${data.host} path=${data.path} hasCode=${data.getQueryParameter("code") != null}",

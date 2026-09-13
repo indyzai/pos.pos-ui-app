@@ -32,7 +32,7 @@ async function initApp() {
     authUiUrl: import.meta.env.VITE_AUTH_UI_URL || "https://auth.indyzai.com",
     storage: localStorage,
     isTauriEnv: true,
-    deepLinkScheme: import.meta.env.VITE_DEEP_LINK_SCHEME || "indyzai-pos",
+    deepLinkScheme: import.meta.env.VITE_DEEP_LINK_SCHEME || "indyzai-pos-desktop",
     useReleaseUrls: import.meta.env.PROD,
   });
 

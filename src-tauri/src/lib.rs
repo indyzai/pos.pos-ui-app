@@ -70,7 +70,8 @@ async fn open_auth_window(handle: AppHandle, url: String) -> Result<(), String> 
             let handle_clone = handle.clone();
             move |url| {
                 // Accept navigation if it looks like an auth callback
-                let is_callback = url.scheme() == "indyzai-pos"
+                let is_callback = url.scheme() == "indyzai-pos-desktop"
+                    || url.scheme() == "indyzai-pos"
                     || (url.host_str() == Some("auth.indyzai.com")
                         && url.path().contains("callback"));
                 if is_callback {
@@ -414,10 +415,10 @@ pub fn run() {
                                 url.query_pairs().any(|(key, _)| key == "code"),
                             ),
                         );
-                        // indyzai-pos://auth/callback is parsed as host `auth`
+                        // indyzai-pos-web://auth/callback is parsed as host `auth`
                         // and path `/callback`; only checking the path drops the
                         // real Android browser callback.
-                        if url.scheme() == "indyzai-pos"
+                        if (url.scheme() == "indyzai-pos-web" || url.scheme() == "indyzai-pos")
                             && ((url.host_str() == Some("auth")
                                 && url.path().starts_with("/callback"))
                                 || url.path().contains("auth/callback"))

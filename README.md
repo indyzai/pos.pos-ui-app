@@ -32,7 +32,7 @@ update
 │                 Tauri Native Rust Core                 │
 │                                                        │
 │  ├─ 🔐 OS Keychain (`keyring`) — Token Storage        │
-│  ├─ 🔗 Deep Links (`indyzai-pos://`) — Auth Callback   │
+│  ├─ 🔗 Deep Links (`indyzai-pos-desktop://`) — Auth Callback   │
 │  ├─ 💾 Offline Storage (`rusqlite` / SQL Plugin)       │
 │  ├─ 🖨️ Native Printing (Bluetooth LE, Network, Spool) │
 │  └─ 🌐 Native HTTP Client (`reqwest` with Rustls)      │
@@ -40,7 +40,7 @@ update
 ```
 
 ### Key Native Capabilities:
-- **Deep Linking**: Registers custom URI schemes (`indyzai-pos://auth/callback`) and HTTPS domain routes for authentication code exchanges directly inside the app.
+- **Deep Linking**: Registers custom URI schemes (`indyzai-pos-desktop://auth/callback`) and HTTPS domain routes for authentication code exchanges directly inside the app.
 - **Hardware Printing**: Direct ESC/POS printing support across Network (TCP 9100), Bluetooth Low Energy (via `btleplug`), and Windows/macOS native spoolers.
 - **Offline SQLite**: Local embedded SQLite database via `@tauri-apps/plugin-sql` / `rusqlite` for robust offline point-of-sale resilience.
 - **Secure Keychain**: Encrypted credential and refresh token management via macOS Keychain, Windows Credential Manager, and Linux Secret Service.

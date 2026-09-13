@@ -92,7 +92,7 @@
                 <action android:name="org.chromium.arc.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="indyzai-pos" />
+                <data android:scheme="indyzai-pos-desktop" />
                 <data android:host="auth" />
                 
                 
