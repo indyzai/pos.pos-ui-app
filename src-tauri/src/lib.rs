@@ -415,10 +415,10 @@ pub fn run() {
                                 url.query_pairs().any(|(key, _)| key == "code"),
                             ),
                         );
-                        // indyzai-pos-web://auth/callback is parsed as host `auth`
+                        // indyzai-pos-desktop://auth/callback is parsed as host `auth`
                         // and path `/callback`; only checking the path drops the
                         // real Android browser callback.
-                        if (url.scheme() == "indyzai-pos-web" || url.scheme() == "indyzai-pos")
+                        if (url.scheme() == "indyzai-pos-desktop" || url.scheme() == "indyzai-pos")
                             && ((url.host_str() == Some("auth")
                                 && url.path().starts_with("/callback"))
                                 || url.path().contains("auth/callback"))
